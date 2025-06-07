@@ -24,4 +24,6 @@ public class EnemyArmyConfig {
     private AIStrategy strategy;
 
     private boolean queenExposed;
+
+
 }

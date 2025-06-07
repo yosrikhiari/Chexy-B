@@ -17,6 +17,7 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/rpg-game")
+@CrossOrigin(origins = "http://localhost:4200")
 public class RPGGameController {
 
     private final IRPGGameService rpgGameService;
@@ -27,7 +28,6 @@ public class RPGGameController {
         this.playerActionService = playerActionService;
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PostMapping
     public ResponseEntity<?> createRPGGame(@RequestParam String userId,
                                            @RequestParam String gameSessionId,
@@ -43,7 +43,6 @@ public class RPGGameController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @GetMapping("/{gameId}")
     public ResponseEntity<?> findById(@PathVariable String gameId) {
         try {
@@ -57,7 +56,6 @@ public class RPGGameController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @GetMapping("/session/{gameSessionId}")
     public ResponseEntity<?> findByGameSessionId(@PathVariable String gameSessionId) {
         try {
@@ -71,7 +69,6 @@ public class RPGGameController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PostMapping("/next-round/{gameId}")
     public ResponseEntity<?> progressToNextRound(@PathVariable String gameId) {
         try {
@@ -85,11 +82,12 @@ public class RPGGameController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PostMapping("/add-piece/{gameId}")
-    public ResponseEntity<?> addPieceToArmy(@PathVariable String gameId, @RequestBody RPGPiece piece) {
+    public ResponseEntity<?> addPieceToArmy(@PathVariable String gameId,
+                                            @RequestBody RPGPiece piece,
+                                            @RequestParam String playerId) {
         try {
-            RPGGameState gameState = rpgGameService.addPieceToArmy(gameId, piece);
+            RPGGameState gameState = rpgGameService.addPieceToArmy(gameId, piece, playerId);
             return ResponseEntity.ok(gameState);
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
@@ -99,11 +97,12 @@ public class RPGGameController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PostMapping("/add-modifier/{gameId}")
-    public ResponseEntity<?> addModifier(@PathVariable String gameId, @RequestBody RPGModifier modifier) {
+    public ResponseEntity<?> addModifier(@PathVariable String gameId,
+                                         @RequestBody RPGModifier modifier,
+                                         @RequestParam String playerId) {
         try {
-            RPGGameState gameState = rpgGameService.addModifier(gameId, modifier);
+            RPGGameState gameState = rpgGameService.addModifier(gameId, modifier, playerId);
             return ResponseEntity.ok(gameState);
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
@@ -113,11 +112,12 @@ public class RPGGameController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PostMapping("/add-board-effect/{gameId}")
-    public ResponseEntity<?> addBoardEffect(@PathVariable String gameId, @RequestBody BoardEffect effect) {
+    public ResponseEntity<?> addBoardEffect(@PathVariable String gameId,
+                                            @RequestBody BoardEffect effect,
+                                            @RequestParam String playerId) {
         try {
-            RPGGameState gameState = rpgGameService.addBoardEffect(gameId, effect);
+            RPGGameState gameState = rpgGameService.addBoardEffect(gameId, effect, playerId);
             return ResponseEntity.ok(gameState);
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
@@ -127,11 +127,12 @@ public class RPGGameController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PatchMapping("/score/{gameId}")
-    public ResponseEntity<?> updateScore(@PathVariable String gameId, @RequestParam int scoreToAdd) {
+    public ResponseEntity<?> updateScore(@PathVariable String gameId,
+                                         @RequestParam int scoreToAdd,
+                                         @RequestParam String playerId) {
         try {
-            RPGGameState gameState = rpgGameService.updateScore(gameId, scoreToAdd);
+            RPGGameState gameState = rpgGameService.updateScore(gameId, scoreToAdd, playerId);
             return ResponseEntity.ok(gameState);
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
@@ -141,11 +142,12 @@ public class RPGGameController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PatchMapping("/coins/{gameId}")
-    public ResponseEntity<?> updateCoins(@PathVariable String gameId, @RequestParam int coinsToAdd) {
+    public ResponseEntity<?> updateCoins(@PathVariable String gameId,
+                                         @RequestParam int coinsToAdd,
+                                         @RequestParam String playerId) {
         try {
-            RPGGameState gameState = rpgGameService.updateCoins(gameId, coinsToAdd);
+            RPGGameState gameState = rpgGameService.updateCoins(gameId, coinsToAdd, playerId);
             return ResponseEntity.ok(gameState);
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
@@ -155,9 +157,9 @@ public class RPGGameController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PostMapping("/end/{gameId}")
-    public ResponseEntity<?> endGame(@PathVariable String gameId, @RequestParam boolean victory) {
+    public ResponseEntity<?> endGame(@PathVariable String gameId,
+                                     @RequestParam boolean victory) {
         try {
             RPGGameState gameState = rpgGameService.endGame(gameId, victory);
             return ResponseEntity.ok(gameState);
@@ -169,7 +171,6 @@ public class RPGGameController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @GetMapping("/active/{userId}")
     public ResponseEntity<?> findActiveGamesByUser(@PathVariable String userId) {
         try {
@@ -181,7 +182,6 @@ public class RPGGameController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @GetMapping("/user/{userId}")
     public ResponseEntity<?> findGamesByUser(@PathVariable String userId) {
         try {
@@ -193,11 +193,12 @@ public class RPGGameController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PostMapping("/purchase/{gameId}/{shopItemId}")
-    public ResponseEntity<?> purchaseShopItem(@PathVariable String gameId, @PathVariable String shopItemId) {
+    public ResponseEntity<?> purchaseShopItem(@PathVariable String gameId,
+                                              @PathVariable String shopItemId,
+                                              @RequestParam String playerId) {
         try {
-            RPGGameState gameState = rpgGameService.purchaseShopItem(gameId, shopItemId);
+            RPGGameState gameState = rpgGameService.purchaseShopItem(gameId, shopItemId, playerId);
             return ResponseEntity.ok(gameState);
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
@@ -207,7 +208,6 @@ public class RPGGameController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @GetMapping("/actions/session/{gameSessionId}")
     public ResponseEntity<?> getActionsForGameSession(@PathVariable String gameSessionId) {
         try {
@@ -219,7 +219,6 @@ public class RPGGameController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @GetMapping("/actions/player/{playerId}")
     public ResponseEntity<?> getActionsForPlayer(@PathVariable String playerId) {
         try {
@@ -231,9 +230,9 @@ public class RPGGameController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @GetMapping("/actions/round/{gameSessionId}/{roundNumber}")
-    public ResponseEntity<?> getActionsForGameAndRound(@PathVariable String gameSessionId, @PathVariable int roundNumber) {
+    public ResponseEntity<?> getActionsForGameAndRound(@PathVariable String gameSessionId,
+                                                       @PathVariable int roundNumber) {
         try {
             List<PlayerAction> actions = playerActionService.getActionsForGameAndRound(gameSessionId, roundNumber);
             return ResponseEntity.ok(actions);

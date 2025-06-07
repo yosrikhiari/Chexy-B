@@ -18,6 +18,7 @@ public class GameSessionController {
 
     private final IGameSessionService gameSessionService;
 
+
     public GameSessionController(IGameSessionService gameSessionService) {
         this.gameSessionService = gameSessionService;
     }

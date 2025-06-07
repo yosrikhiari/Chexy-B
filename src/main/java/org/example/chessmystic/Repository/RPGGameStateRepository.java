@@ -10,6 +10,7 @@ import java.util.Optional;
 
 @Repository
 public interface RPGGameStateRepository extends MongoRepository<RPGGameState, String> {
+
     Optional<RPGGameState> findByGameSessionId(String gameSessionId);
     List<RPGGameState> findByUserId(String userId);
     List<RPGGameState> findByStatus(GameStatus status);

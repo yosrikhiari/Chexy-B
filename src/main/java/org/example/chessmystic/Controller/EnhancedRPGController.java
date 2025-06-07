@@ -32,6 +32,7 @@ public class EnhancedRPGController {
         private EnhancedRPGPiece attacker;
         private EnhancedRPGPiece defender;
         private String gameId;
+        private String playerId;
 
         // Getters and setters
         public EnhancedRPGPiece getAttacker() {
@@ -57,13 +58,26 @@ public class EnhancedRPGController {
         public void setGameId(String gameId) {
             this.gameId = gameId;
         }
+
+        public String getPlayerId() {
+            return playerId;
+        }
+
+        public void setPlayerId(String playerId) {
+            this.playerId = playerId;
+        }
     }
 
     @CrossOrigin(origins = "http://localhost:4200")
     @PostMapping("/combat")
     public ResponseEntity<?> resolveCombat(@RequestBody CombatRequest request) {
         try {
-            CombatResult result = enhancedRPGService.resolveCombat(request.getAttacker(), request.getDefender(), request.getGameId());
+            CombatResult result = enhancedRPGService.resolveCombat(
+                    request.getAttacker(),
+                    request.getDefender(),
+                    request.getGameId(),
+                    request.getPlayerId()
+            );
             return ResponseEntity.ok(result);
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
@@ -74,10 +88,13 @@ public class EnhancedRPGController {
     }
 
     @CrossOrigin(origins = "http://localhost:4200")
-    @PostMapping("/board-effect/{gameId}")
-    public ResponseEntity<?> applyBoardEffect(@PathVariable String gameId, @RequestBody BoardEffect effect) {
+    @PostMapping("/board-effect/{gameId}/{playerId}")
+    public ResponseEntity<?> applyBoardEffect(
+            @PathVariable String gameId,
+            @PathVariable String playerId,
+            @RequestBody BoardEffect effect) {
         try {
-            enhancedRPGService.applyBoardEffect(gameId, effect);
+            enhancedRPGService.applyBoardEffect(gameId, effect, playerId);
             return ResponseEntity.ok(Map.of("message", "Board effect applied successfully"));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
@@ -88,10 +105,13 @@ public class EnhancedRPGController {
     }
 
     @CrossOrigin(origins = "http://localhost:4200")
-    @PostMapping("/boss-encounter/{gameId}")
-    public ResponseEntity<?> handleBossEncounter(@PathVariable String gameId, @RequestBody RPGBoss boss) {
+    @PostMapping("/boss-encounter/{gameId}/{playerId}")
+    public ResponseEntity<?> handleBossEncounter(
+            @PathVariable String gameId,
+            @PathVariable String playerId,
+            @RequestBody RPGBoss boss) {
         try {
-            enhancedRPGService.handleBossEncounter(gameId, boss);
+            enhancedRPGService.handleBossEncounter(gameId, boss, playerId);
             return ResponseEntity.ok(Map.of("message", "Boss encounter handled successfully"));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));

@@ -1,6 +1,7 @@
 package org.example.chessmystic.Models.Mechanics;
 
 import lombok.*;
+import org.example.chessmystic.Models.AISystem.EnemyArmyConfig;
 import org.example.chessmystic.Models.Transactions.CapacityModifier;
 import org.example.chessmystic.Models.GameStateandFlow.GameMode;
 import org.example.chessmystic.Models.GameStateandFlow.GameStatus;
@@ -59,4 +60,7 @@ public class RPGGameState {
     private String currentRoundConfigId; // Link to BoardConfiguration
     private List<String> actionHistoryIds; // Links to PlayerAction records
     private String shopStateId; // Link to current shop state if applicable
+
+    private EnemyArmyConfig EnemyArmyConfig; // just so you know what to fight every round
+
 }

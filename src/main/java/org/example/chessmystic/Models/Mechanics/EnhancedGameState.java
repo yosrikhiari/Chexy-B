@@ -15,6 +15,8 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class EnhancedGameState extends RPGGameState {
+
+
     private int difficulty;
     private List<EnhancedRPGPiece> enemyArmy;
     private AIStrategy aiStrategy;

@@ -6,11 +6,12 @@ import org.springframework.data.mongodb.repository.Query;
 import org.springframework.stereotype.Repository;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface GameHistoryRepository extends MongoRepository<GameHistory, String> {
     List<GameHistory> findByUserIdsContaining(String userId);
-    List<GameHistory> findByGameSessionId(String gameSessionId);
+    Optional<GameHistory> findByGameSessionId(String gameSessionId);
     List<GameHistory> findByIsRankedTrue();
     List<GameHistory> findByIsRPGModeTrue();
 
@@ -19,4 +20,10 @@ public interface GameHistoryRepository extends MongoRepository<GameHistory, Stri
 
     @Query("{'userIds': {$in: [?0]}, 'isRanked': true}")
     List<GameHistory> findRankedGamesByUserId(String userId);
+
+    List<GameHistory> findByUserIdsContainingAndIsRankedTrue(String userId);
+
+    List<GameHistory> findByUserIdsContainingAndIsRPGModeTrue(String userId);
+
+    List<GameHistory> findByStartTimeAfter(LocalDateTime since);
 }
