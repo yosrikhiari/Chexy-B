@@ -12,15 +12,6 @@ import java.util.Optional;
 public interface GameHistoryRepository extends MongoRepository<GameHistory, String> {
     List<GameHistory> findByUserIdsContaining(String userId);
     Optional<GameHistory> findByGameSessionId(String gameSessionId);
-    List<GameHistory> findByIsRankedTrue();
-    List<GameHistory> findByIsRPGModeTrue();
-
-    @Query("{'startTime': {$gte: ?0, $lte: ?1}}")
-    List<GameHistory> findByStartTimeBetween(LocalDateTime start, LocalDateTime end);
-
-    @Query("{'userIds': {$in: [?0]}, 'isRanked': true}")
-    List<GameHistory> findRankedGamesByUserId(String userId);
-
     List<GameHistory> findByUserIdsContainingAndIsRankedTrue(String userId);
 
     List<GameHistory> findByUserIdsContainingAndIsRPGModeTrue(String userId);

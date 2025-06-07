@@ -12,7 +12,6 @@ import org.example.chessmystic.Repository.GameSessionRepository;
 import org.example.chessmystic.Repository.GameStateRepository;
 import org.example.chessmystic.Repository.RPGGameStateRepository;
 import org.example.chessmystic.Service.interfaces.GameRelated.IChessGameService;
-import org.example.chessmystic.Service.interfaces.GameRelated.IPlayerActionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,8 +22,6 @@ import java.util.Random;
 public class ChessGameService implements IChessGameService {
 
     private final GameSessionRepository gameSessionRepository;
-    private final GameStateRepository gameStateRepository;
-    private final RPGGameStateRepository rpgGameStateRepository;
     private final TieResolutionOptionService tieResolutionOptionService;
 
     @Autowired
@@ -34,8 +31,6 @@ public class ChessGameService implements IChessGameService {
                             TieResolutionOptionService tieResolutionOptionService) {
         // Remove playerActionService
         this.gameSessionRepository = gameSessionRepository;
-        this.gameStateRepository = gameStateRepository;
-        this.rpgGameStateRepository = rpgGameStateRepository;
         this.tieResolutionOptionService = tieResolutionOptionService;
     }
 
@@ -125,12 +120,9 @@ public class ChessGameService implements IChessGameService {
                 }
             }
         }
-        if (!hasNonKingPiece || (whiteMaterial <= 3 && blackMaterial <= 3)) {
-            return true; // King vs King or minor piece scenarios
-        }
+        return !hasNonKingPiece || (whiteMaterial <= 3 && blackMaterial <= 3); // King vs King or minor piece scenarios
 
         // TODO: Add checks for threefold repetition, fifty-move rule
-        return false;
     }
 
 

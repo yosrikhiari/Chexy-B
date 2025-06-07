@@ -1,7 +1,7 @@
 package org.example.chessmystic.Controller;
 
 import org.example.chessmystic.Models.chess.BoardPosition;
-import org.example.chessmystic.Models.GameStateandFlow.GameState;
+
 import org.example.chessmystic.Models.chess.PieceColor;
 import org.example.chessmystic.Service.interfaces.GameRelated.IChessGameService;
 import org.springframework.beans.factory.annotation.Autowired;

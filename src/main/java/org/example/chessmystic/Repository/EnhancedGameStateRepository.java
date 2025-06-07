@@ -10,11 +10,5 @@ import java.util.List;
 
 @Repository
 public interface EnhancedGameStateRepository extends MongoRepository<EnhancedGameState, String> {
-    //   List<EnhancedGameState> findByUserId(String userId);
     List<EnhancedGameState> findByGameSessionId(String gameSessionId);
-    List<EnhancedGameState> findByDifficulty(int difficulty);
-    List<EnhancedGameState> findByAiStrategy(AIStrategy strategy);
-
-    @Query("{'isGameOver': false, 'difficulty': {$gte: ?0}}")
-    List<EnhancedGameState> findActiveHardGames(int minDifficulty);
 }

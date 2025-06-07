@@ -1,7 +1,6 @@
 package org.example.chessmystic.Service.interfaces.GameRelated;
 
 import org.example.chessmystic.Models.chess.BoardPosition;
-import org.example.chessmystic.Models.GameStateandFlow.GameState;
 import org.example.chessmystic.Models.chess.PieceColor;
 
 public interface IChessGameService {
