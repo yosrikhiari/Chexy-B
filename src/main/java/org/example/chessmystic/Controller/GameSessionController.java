@@ -3,6 +3,7 @@ package org.example.chessmystic.Controller;
 import org.example.chessmystic.Models.GameStateandFlow.GameMode;
 import org.example.chessmystic.Models.GameStateandFlow.GameStatus;
 import org.example.chessmystic.Models.Tracking.GameSession;
+import org.example.chessmystic.Models.UIUX.TieResolutionOption;
 import org.example.chessmystic.Service.interfaces.GameRelated.IGameSessionService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -100,9 +101,12 @@ public class GameSessionController {
 
     @CrossOrigin(origins = "http://localhost:4200")
     @PostMapping("/end/{gameId}")
-    public ResponseEntity<?> endGame(@PathVariable String gameId, @RequestParam(required = false) String winnerId) {
+    public ResponseEntity<?> endGame(@PathVariable String gameId,
+                                     @RequestParam(required = false) String winnerId,
+                                     @RequestParam(required = false, defaultValue = "false") boolean isDraw,
+                                     @RequestParam(required = false) TieResolutionOption tieOption) {
         try {
-            GameSession session = gameSessionService.endGame(gameId, winnerId);
+            GameSession session = gameSessionService.endGame(gameId, winnerId, isDraw, tieOption);
             return ResponseEntity.ok(session);
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));

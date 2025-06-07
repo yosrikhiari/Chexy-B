@@ -22,19 +22,17 @@ import java.util.Random;
 @Service
 public class ChessGameService implements IChessGameService {
 
-    private final IPlayerActionService playerActionService;
     private final GameSessionRepository gameSessionRepository;
     private final GameStateRepository gameStateRepository;
     private final RPGGameStateRepository rpgGameStateRepository;
     private final TieResolutionOptionService tieResolutionOptionService;
 
     @Autowired
-    public ChessGameService(IPlayerActionService playerActionService,
-                            GameSessionRepository gameSessionRepository,
+    public ChessGameService(GameSessionRepository gameSessionRepository,
                             GameStateRepository gameStateRepository,
                             RPGGameStateRepository rpgGameStateRepository,
                             TieResolutionOptionService tieResolutionOptionService) {
-        this.playerActionService = playerActionService;
+        // Remove playerActionService
         this.gameSessionRepository = gameSessionRepository;
         this.gameStateRepository = gameStateRepository;
         this.rpgGameStateRepository = rpgGameStateRepository;
@@ -78,54 +76,6 @@ public class ChessGameService implements IChessGameService {
         }
 
         return validateSpecialMoves(gameState, movingPiece, fromRow, fromCol, toRow, toCol, board);
-    }
-
-    @Override
-    @Transactional
-    public GameState executeMove(String gameId, BoardPosition move) {
-        var session = gameSessionRepository.findById(gameId)
-                .orElseThrow(() -> new IllegalArgumentException("Game session not found"));
-
-        if (!validateMove(gameId, move)) {
-            throw new IllegalArgumentException("Invalid move");
-        }
-
-        GameState gameState = session.getGameState();
-        Piece[][] board = session.getBoard();
-
-        int fromRow = move.getRow();
-        int fromCol = move.getCol();
-        int toRow = move.getTorow();
-        int toCol = move.getTocol();
-
-        Piece movingPiece = board[fromRow][fromCol];
-        Piece targetPiece = board[toRow][toCol];
-
-        ActionType actionType = determineActionType(movingPiece, targetPiece, fromRow, fromCol, toRow, toCol, board);
-
-        // Update board
-        movingPiece.setHasMoved(true);
-        board[toRow][toCol] = movingPiece;
-        board[fromRow][fromCol] = null;
-
-        handleSpecialMoves(gameState, movingPiece, fromRow, fromCol, toRow, toCol, board);
-
-        String playerId = movingPiece.getColor() == PieceColor.WHITE
-                ? session.getWhitePlayer().getUserId()
-                : session.getBlackPlayer().get(0).getUserId(); // Assuming one black player for standard chess
-
-        playerActionService.recordAction(
-                gameId, playerId, actionType, fromRow, fromCol, toRow, toCol,
-                session.getGameHistoryId(), session.getRpgGameStateId(), 0, null, 0, false, false);
-
-        updateGameState(gameState, board, session.getGameMode());
-
-        session.setGameState(gameState);
-        session.setBoard(board);
-        gameStateRepository.save(gameState);
-        gameSessionRepository.save(session);
-
-        return gameState;
     }
 
     @Override
@@ -183,26 +133,7 @@ public class ChessGameService implements IChessGameService {
         return false;
     }
 
-    public TieResolutionOption selectTieResolutionOption(GameMode gameMode) {
-        if (gameMode == GameMode.SINGLE_PLAYER_RPG || gameMode == GameMode.MULTIPLAYER_RPG || gameMode == GameMode.ENHANCED_RPG) {
-            var options = tieResolutionOptionService.getAllOptions();
-            if (options.isEmpty()) {
-                return null;
-            }
-            // Weighted random selection
-            int totalWeight = options.stream().mapToInt(TieResolutionOption::getWeight).sum();
-            Random rand = new Random();
-            int randomWeight = rand.nextInt(totalWeight) + 1;
-            int cumulativeWeight = 0;
-            for (TieResolutionOption option : options) {
-                cumulativeWeight += option.getWeight();
-                if (randomWeight <= cumulativeWeight) {
-                    return option;
-                }
-            }
-        }
-        return null;
-    }
+
 
     private int getPieceValue(Piece piece) {
         switch (piece.getType()) {
@@ -215,7 +146,7 @@ public class ChessGameService implements IChessGameService {
         }
     }
 
-    private ActionType determineActionType(Piece movingPiece, Piece targetPiece, int fromRow, int fromCol, int toRow, int toCol, Piece[][] board) {
+    ActionType determineActionType(Piece movingPiece, Piece targetPiece, int fromRow, int fromCol, int toRow, int toCol, Piece[][] board) {
         if (targetPiece != null) return ActionType.CAPTURE;
         if (movingPiece.getType() == PieceType.KING && Math.abs(toCol - fromCol) == 2) {
             return toCol > fromCol ? ActionType.CASTLE_KINGSIDE : ActionType.CASTLE_QUEENSIDE;
@@ -232,7 +163,7 @@ public class ChessGameService implements IChessGameService {
         return ActionType.NORMAL;
     }
 
-    private void updateGameState(GameState gameState, Piece[][] board, GameMode gameMode) {
+    void updateGameState(GameState gameState, Piece[][] board, GameMode gameMode) {
         gameState.setMoveCount(gameState.getMoveCount() + 1);
         PieceColor nextTurn = gameState.getCurrentTurn() == PieceColor.WHITE ? PieceColor.BLACK : PieceColor.WHITE;
         gameState.setCurrentTurn(nextTurn);
@@ -352,7 +283,7 @@ public class ChessGameService implements IChessGameService {
         return true;
     }
 
-    private void handleSpecialMoves(GameState gameState, Piece piece, int fromRow, int fromCol, int toRow, int toCol, Piece[][] board) {
+    void handleSpecialMoves(GameState gameState, Piece piece, int fromRow, int fromCol, int toRow, int toCol, Piece[][] board) {
         if (piece.getType() == PieceType.KING && Math.abs(toCol - fromCol) == 2) {
             boolean isKingSide = toCol > fromCol;
             int rookCol = isKingSide ? 7 : 0;
@@ -424,5 +355,27 @@ public class ChessGameService implements IChessGameService {
         tempBoard[toRow][toCol] = movingPiece;
         tempBoard[fromRow][fromCol] = null;
         return tempBoard;
+    }
+
+
+    public TieResolutionOption selectTieResolutionOption(GameMode gameMode) {
+        if (gameMode == GameMode.SINGLE_PLAYER_RPG || gameMode == GameMode.MULTIPLAYER_RPG || gameMode == GameMode.ENHANCED_RPG) {
+            var options = tieResolutionOptionService.getAllOptions();
+            if (options.isEmpty()) {
+                return null;
+            }
+            // Weighted random selection
+            int totalWeight = options.stream().mapToInt(TieResolutionOption::getWeight).sum();
+            Random rand = new Random();
+            int randomWeight = rand.nextInt(totalWeight) + 1;
+            int cumulativeWeight = 0;
+            for (TieResolutionOption option : options) {
+                cumulativeWeight += option.getWeight();
+                if (randomWeight <= cumulativeWeight) {
+                    return option;
+                }
+            }
+        }
+        return null;
     }
 }

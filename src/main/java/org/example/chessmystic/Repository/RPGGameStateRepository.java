@@ -12,15 +12,8 @@ import java.util.Optional;
 public interface RPGGameStateRepository extends MongoRepository<RPGGameState, String> {
 
     Optional<RPGGameState> findByGameSessionId(String gameSessionId);
-    List<RPGGameState> findByUserId(String userId);
-    List<RPGGameState> findByStatus(GameStatus status);
-
+//    List<RPGGameState> findByUserId(String userId);
     @Query("{'userId': ?0, 'isGameOver': false}")
     List<RPGGameState> findActiveGamesByUserId(String userId);
 
-    @Query("{'currentRound': {$gte: ?0}}")
-    List<RPGGameState> findByCurrentRoundGreaterThanEqual(int round);
-
-    @Query(value = "{'userId': ?0}", sort = "{'score': -1}")
-    List<RPGGameState> findByUserIdOrderByScoreDesc(String userId);
 }

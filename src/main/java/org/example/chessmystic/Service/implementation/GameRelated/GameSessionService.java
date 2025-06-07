@@ -28,7 +28,6 @@ public class GameSessionService implements IGameSessionService {
     private final GameSessionRepository gameSessionRepository;
     private final UserService userService;
     private final GameHistoryService gameHistoryService;
-    private final ChessGameService chessGameService;
 
     @Autowired
     public GameSessionService(GameSessionRepository gameSessionRepository,
@@ -38,7 +37,6 @@ public class GameSessionService implements IGameSessionService {
         this.gameSessionRepository = gameSessionRepository;
         this.userService = userService;
         this.gameHistoryService = gameHistoryService;
-        this.chessGameService = chessGameService;
     }
 
     @Override
@@ -164,9 +162,9 @@ public class GameSessionService implements IGameSessionService {
         return updatedSession;
     }
 
-    @Override
     @Transactional
-    public GameSession endGame(String gameId, String winnerId) {
+    @Override
+    public GameSession endGame(String gameId, String winnerId, boolean isDraw, TieResolutionOption tieOption) {
         GameSession session = gameSessionRepository.findById(gameId)
                 .orElseThrow(() -> new RuntimeException("Game session not found with id: " + gameId));
 
@@ -192,9 +190,7 @@ public class GameSessionService implements IGameSessionService {
             }
         } else {
             // Check for draw
-            boolean isDraw = chessGameService.isDraw(gameId, session.getGameState().getCurrentTurn());
             if (isDraw) {
-                TieResolutionOption tieOption = chessGameService.selectTieResolutionOption(session.getGameMode());
                 if (tieOption != null) {
                     // For simplicity, assume tie resolution picks a winner randomly for MULTIPLAYER_RPG
                     if (session.getGameMode() == GameMode.MULTIPLAYER_RPG) {
@@ -349,4 +345,11 @@ public class GameSessionService implements IGameSessionService {
     private String generateInviteCode() {
         return UUID.randomUUID().toString().substring(0, 8).toUpperCase();
     }
+
+
+    @Transactional
+    public void saveSession(GameSession session) {
+        gameSessionRepository.save(session);
+    }
+
 }

@@ -182,7 +182,7 @@ public class RPGGameController {
         }
     }
 
-    @GetMapping("/user/{userId}")
+/*    @GetMapping("/user/{userId}")
     public ResponseEntity<?> findGamesByUser(@PathVariable String userId) {
         try {
             List<RPGGameState> games = rpgGameService.findGamesByUser(userId);
@@ -192,7 +192,7 @@ public class RPGGameController {
                     .body(Map.of("error", "Failed to find user games", "message", e.getMessage()));
         }
     }
-
+*/
     @PostMapping("/purchase/{gameId}/{shopItemId}")
     public ResponseEntity<?> purchaseShopItem(@PathVariable String gameId,
                                               @PathVariable String shopItemId,

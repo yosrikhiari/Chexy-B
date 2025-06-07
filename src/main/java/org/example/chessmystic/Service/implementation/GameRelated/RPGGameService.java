@@ -524,7 +524,9 @@ public class RPGGameService implements IRPGGameService {
                 .orElse(null);
         gameSessionService.endGame(
                 gameState.getGameSessionId(),
-                victory ? Objects.requireNonNull(gameSession).getCurrentPlayerId() : null
+                victory ? Objects.requireNonNull(gameSession).getCurrentPlayerId() : null,
+                false,
+                null
         );
     }
 
@@ -533,11 +535,11 @@ public class RPGGameService implements IRPGGameService {
         return rpgGameStateRepository.findActiveGamesByUserId(userId);
     }
 
-    @Override
+/*    @Override
     public List<RPGGameState> findGamesByUser(String userId) {
-        return rpgGameStateRepository.findByUserId(userId);
+        return rpgGameStateRepository.f(userId);
     }
-
+*/
     @Override
     @Transactional
     public RPGGameState purchaseShopItem(String gameId, String shopItemId, String playerId) {

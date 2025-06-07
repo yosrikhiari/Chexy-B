@@ -27,13 +27,6 @@ public class ChessGameController {
         return ResponseEntity.ok(isValid);
     }
 
-    @PostMapping("/{gameId}/execute-move")
-    public ResponseEntity<GameState> executeMove(
-            @PathVariable String gameId,
-            @RequestBody BoardPosition move) {
-        GameState gameState = chessGameService.executeMove(gameId, move);
-        return ResponseEntity.ok(gameState);
-    }
 
     @GetMapping("/{gameId}/check-status")
     public ResponseEntity<Boolean> isCheck(

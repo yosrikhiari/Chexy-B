@@ -41,7 +41,7 @@ public interface IRPGGameService {
 
     List<RPGGameState> findActiveGamesByUser(String userId);
 
-    List<RPGGameState> findGamesByUser(String userId);
+//    List<RPGGameState> findGamesByUser(String userId);
 
     @Transactional
     RPGGameState purchaseShopItem(String gameId, String shopItemId, String playerId);

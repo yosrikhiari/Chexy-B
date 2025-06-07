@@ -234,7 +234,7 @@ public class EnhancedRPGService implements IEnhancedRPGService {
                     .orElse(null);
             String winnerId = victory && gameSession != null ? gameSession.getCurrentPlayerId() : null;
 
-            gameSessionService.endGame(gameState.getGameSessionId(), winnerId);
+            gameSessionService.endGame(gameState.getGameSessionId(), winnerId, false, null);
         }
     }
 
