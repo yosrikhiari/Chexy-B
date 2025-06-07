@@ -36,8 +36,4 @@ public class GameHistory {
     private int finalRound;
     private int finalScore;
 
-    // FIXED: Add game mode and additional metadata
-    private String gameMode; // Store the actual game mode
-    private String rpgGameStateId; // Link to RPG state if applicable
-    private String enhancedGameStateId; // Link to Enhanced RPG state if applicable
 }

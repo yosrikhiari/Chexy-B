@@ -24,4 +24,9 @@ public interface GameSessionRepository extends MongoRepository<GameSession, Stri
     List<GameSession> findByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
 
     Optional<GameSession> findByInviteCode(String inviteCode);
+
+    @Query("{ 'enhancedGameStateId': ?0, 'playerIds': { $in: [?1] } }")
+    GameSession findByEnhancedGameStateIdAndPlayerId(String enhancedGameStateId, String playerId);
+
+    GameSession findByEnhancedGameStateId(String enhancedGameStateId);
 }

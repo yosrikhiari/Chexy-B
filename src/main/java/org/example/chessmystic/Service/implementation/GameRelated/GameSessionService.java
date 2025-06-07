@@ -1,14 +1,13 @@
 package org.example.chessmystic.Service.implementation.GameRelated;
 
-import org.example.chessmystic.Models.GameStateandFlow.GameState;
-import org.example.chessmystic.Models.GameStateandFlow.GameTimers;
+import org.example.chessmystic.Models.GameStateandFlow.*;
+import org.example.chessmystic.Models.UIUX.TieResolutionOption;
 import org.example.chessmystic.Models.chess.Piece;
-import org.example.chessmystic.Models.GameStateandFlow.PlayerTimer;
-import org.example.chessmystic.Models.GameStateandFlow.GameMode;
-import org.example.chessmystic.Models.GameStateandFlow.GameStatus;
 import org.example.chessmystic.Models.chess.PieceColor;
 import org.example.chessmystic.Models.chess.PieceType;
 import org.example.chessmystic.Models.Tracking.GameSession;
+import org.example.chessmystic.Models.Tracking.GameHistory;
+import org.example.chessmystic.Models.Tracking.GameResult;
 import org.example.chessmystic.Models.Tracking.PlayerSessionInfo;
 import org.example.chessmystic.Repository.GameSessionRepository;
 import org.example.chessmystic.Service.implementation.UserService;
@@ -28,21 +27,28 @@ public class GameSessionService implements IGameSessionService {
     private static final Logger logger = LoggerFactory.getLogger(GameSessionService.class);
     private final GameSessionRepository gameSessionRepository;
     private final UserService userService;
+    private final GameHistoryService gameHistoryService;
+    private final ChessGameService chessGameService;
 
     @Autowired
-    public GameSessionService(GameSessionRepository gameSessionRepository, UserService userService) {
+    public GameSessionService(GameSessionRepository gameSessionRepository,
+                              UserService userService,
+                              GameHistoryService gameHistoryService,
+                              ChessGameService chessGameService) {
         this.gameSessionRepository = gameSessionRepository;
         this.userService = userService;
+        this.gameHistoryService = gameHistoryService;
+        this.chessGameService = chessGameService;
     }
 
     @Override
     @Transactional
     public GameSession createGameSession(String playerId, GameMode gameMode, boolean isPrivate, String inviteCode) {
-        logger.info("Creating game session for player: {}, mode: {}", playerId, gameMode);
         var user = userService.findById(playerId)
                 .orElseThrow(() -> new RuntimeException("User not found with id: " + playerId));
 
         PlayerSessionInfo playerInfo = PlayerSessionInfo.builder()
+                .id(UUID.randomUUID().toString())
                 .userId(playerId)
                 .keycloakId(user.getKeycloakId())
                 .username(user.getUsername())
@@ -52,25 +58,26 @@ public class GameSessionService implements IGameSessionService {
                 .build();
 
         GameSession session = GameSession.builder()
+                .gameId(UUID.randomUUID().toString())
                 .whitePlayer(playerInfo)
+                .blackPlayer(new ArrayList<>())
                 .gameMode(gameMode)
+                .isRankedMatch(gameMode == GameMode.TOURNAMENT)
                 .isPrivate(isPrivate)
                 .inviteCode(isPrivate ? (inviteCode != null ? inviteCode : generateInviteCode()) : null)
                 .status(GameStatus.WAITING_FOR_PLAYERS)
                 .createdAt(LocalDateTime.now())
                 .lastActivity(LocalDateTime.now())
                 .isActive(true)
-                .playerIds(new ArrayList<>(List.of(playerId)))
                 .playerLastSeen(new HashMap<>(Map.of(playerId, LocalDateTime.now())))
                 .timeControlMinutes(10)
                 .incrementSeconds(0)
                 .allowSpectators(true)
                 .spectatorIds(new ArrayList<>())
+                .moveHistoryIds(new ArrayList<>())
                 .build();
 
-        GameSession savedSession = gameSessionRepository.save(session);
-        logger.info("Game session created: {}", savedSession.getGameId());
-        return savedSession;
+        return gameSessionRepository.save(session);
     }
 
     @Override
@@ -86,7 +93,6 @@ public class GameSessionService implements IGameSessionService {
     @Override
     @Transactional
     public GameSession joinGame(String gameId, String playerId, String inviteCode) {
-        logger.info("Player {} joining game: {}", playerId, gameId);
         GameSession session = gameSessionRepository.findById(gameId)
                 .orElseThrow(() -> new RuntimeException("Game session not found with id: " + gameId));
 
@@ -102,7 +108,8 @@ public class GameSessionService implements IGameSessionService {
             throw new RuntimeException("Player is already in the game");
         }
 
-        if (session.getBlackPlayer() != null) {
+        // Allow multiple black players only for MULTIPLAYER_RPG
+        if (session.getGameMode() != GameMode.MULTIPLAYER_RPG && !session.getBlackPlayer().isEmpty()) {
             throw new RuntimeException("Game is already full");
         }
 
@@ -110,6 +117,7 @@ public class GameSessionService implements IGameSessionService {
                 .orElseThrow(() -> new RuntimeException("User not found with id: " + playerId));
 
         PlayerSessionInfo playerInfo = PlayerSessionInfo.builder()
+                .id(UUID.randomUUID().toString())
                 .userId(playerId)
                 .keycloakId(user.getKeycloakId())
                 .username(user.getUsername())
@@ -118,24 +126,14 @@ public class GameSessionService implements IGameSessionService {
                 .lastSeen(LocalDateTime.now())
                 .build();
 
-        session.setBlackPlayer(playerInfo);
-        session.setStatus(GameStatus.ACTIVE);
-        session.setStartedAt(LocalDateTime.now());
-        session.setLastActivity(LocalDateTime.now());
+        if (session.getBlackPlayer() == null) {
+            session.setBlackPlayer(new ArrayList<>());
+        }
+        session.getBlackPlayer().add(playerInfo);
+        session.getPlayerIds().add(playerId);
+        session.getPlayerLastSeen().put(playerId, LocalDateTime.now());
 
-        List<String> playerIds = new ArrayList<>(session.getPlayerIds());
-        playerIds.add(playerId);
-        session.setPlayerIds(playerIds);
-
-        Map<String, LocalDateTime> lastSeen = new HashMap<>(session.getPlayerLastSeen());
-        lastSeen.put(playerId, LocalDateTime.now());
-        session.setPlayerLastSeen(lastSeen);
-
-        initializeGameState(session);
-
-        GameSession updatedSession = gameSessionRepository.save(session);
-        logger.info("Player {} joined game: {}", playerId, gameId);
-        return updatedSession;
+        return gameSessionRepository.save(session);
     }
 
     @Override
@@ -144,8 +142,8 @@ public class GameSessionService implements IGameSessionService {
         GameSession session = gameSessionRepository.findById(gameId)
                 .orElseThrow(() -> new RuntimeException("Game session not found with id: " + gameId));
 
-        if (session.getWhitePlayer() == null || session.getBlackPlayer() == null) {
-            throw new RuntimeException("Cannot start game without two players");
+        if (session.getWhitePlayer() == null || session.getBlackPlayer().isEmpty()) {
+            throw new RuntimeException("Cannot start game without at least two players");
         }
 
         if (session.getStatus() != GameStatus.WAITING_FOR_PLAYERS) {
@@ -157,6 +155,9 @@ public class GameSessionService implements IGameSessionService {
         session.setLastActivity(LocalDateTime.now());
 
         initializeGameState(session);
+
+        GameHistory gameHistory = gameHistoryService.createGameHistory(session);
+        session.setGameHistoryId(gameHistory.getId());
 
         GameSession updatedSession = gameSessionRepository.save(session);
         logger.info("Game started: {}", gameId);
@@ -177,7 +178,52 @@ public class GameSessionService implements IGameSessionService {
         session.setLastActivity(LocalDateTime.now());
         session.setActive(false);
 
+        GameResult.GameResultBuilder resultBuilder = GameResult.builder()
+                .gameresultId(UUID.randomUUID().toString())
+                .gameid(gameId);
+
+        if (winnerId != null) {
+            resultBuilder.winnerid(winnerId)
+                    .gameEndReason(GameEndReason.CHECKMATE);
+            var winner = userService.findById(winnerId).orElse(null);
+            if (winner != null) {
+                resultBuilder.winnerName(winner.getFirstName() + " " + winner.getLastName());
+                resultBuilder.winner(session.getWhitePlayer().getUserId().equals(winnerId) ? PieceColor.WHITE : PieceColor.BLACK);
+            }
+        } else {
+            // Check for draw
+            boolean isDraw = chessGameService.isDraw(gameId, session.getGameState().getCurrentTurn());
+            if (isDraw) {
+                TieResolutionOption tieOption = chessGameService.selectTieResolutionOption(session.getGameMode());
+                if (tieOption != null) {
+                    // For simplicity, assume tie resolution picks a winner randomly for MULTIPLAYER_RPG
+                    if (session.getGameMode() == GameMode.MULTIPLAYER_RPG) {
+                        List<String> playerIds = session.getPlayerIds();
+                        winnerId = playerIds.get(new Random().nextInt(playerIds.size()));
+                        resultBuilder.winnerid(winnerId)
+                                .winner(session.getWhitePlayer().getUserId().equals(winnerId) ? PieceColor.WHITE : PieceColor.BLACK)
+                                .winnerName(userService.findById(winnerId)
+                                        .map(u -> u.getFirstName() + " " + u.getLastName())
+                                        .orElse("Unknown"))
+                                .gameEndReason(GameEndReason.TIE_RESOLVED)
+                                .tieResolutionOption(tieOption);
+                    } else {
+                        // For single-player RPG or Enhanced RPG, no winner
+                        resultBuilder.gameEndReason(GameEndReason.DRAW)
+                                .tieResolutionOption(tieOption);
+                    }
+                } else {
+                    resultBuilder.gameEndReason(GameEndReason.DRAW);
+                }
+            } else {
+                resultBuilder.gameEndReason(GameEndReason.DRAW);
+            }
+        }
+
+        GameResult result = resultBuilder.build();
         GameSession updatedSession = gameSessionRepository.save(session);
+        gameHistoryService.updateGameHistory(session.getGameHistoryId(), result, LocalDateTime.now());
+
         logger.info("Game ended: {}, winner: {}", gameId, winnerId != null ? winnerId : "none");
         return updatedSession;
     }
@@ -201,10 +247,7 @@ public class GameSessionService implements IGameSessionService {
 
         session.setStatus(status);
         session.setLastActivity(LocalDateTime.now());
-
-        GameSession updatedSession = gameSessionRepository.save(session);
-        logger.info("Game status updated: {} to {}", gameId, status);
-        return updatedSession;
+        return gameSessionRepository.save(session);
     }
 
     @Override
@@ -217,13 +260,9 @@ public class GameSessionService implements IGameSessionService {
             throw new RuntimeException("Player not part of this game session");
         }
 
-        Map<String, LocalDateTime> lastSeen = new HashMap<>(session.getPlayerLastSeen());
-        lastSeen.put(playerId, LocalDateTime.now());
-        session.setPlayerLastSeen(lastSeen);
+        session.getPlayerLastSeen().put(playerId, LocalDateTime.now());
         session.setLastActivity(LocalDateTime.now());
-
         gameSessionRepository.save(session);
-        logger.info("Updated last seen for player {} in game: {}", playerId, gameId);
     }
 
     @Override
@@ -235,18 +274,20 @@ public class GameSessionService implements IGameSessionService {
         if (session.getWhitePlayer() != null && session.getWhitePlayer().getUserId().equals(playerId)) {
             session.getWhitePlayer().setConnected(true);
             session.getWhitePlayer().setLastSeen(LocalDateTime.now());
-        } else if (session.getBlackPlayer() != null && session.getBlackPlayer().getUserId().equals(playerId)) {
-            session.getBlackPlayer().setConnected(true);
-            session.getBlackPlayer().setLastSeen(LocalDateTime.now());
+        } else if (session.getBlackPlayer().stream().anyMatch(p -> p.getUserId().equals(playerId))) {
+            session.getBlackPlayer().stream()
+                    .filter(p -> p.getUserId().equals(playerId))
+                    .findFirst()
+                    .ifPresent(p -> {
+                        p.setConnected(true);
+                        p.setLastSeen(LocalDateTime.now());
+                    });
         } else {
             throw new RuntimeException("Player not part of this game session");
         }
 
         updatePlayerLastSeen(gameId, playerId);
-
-        GameSession updatedSession = gameSessionRepository.save(session);
-        logger.info("Player {} reconnected to game: {}", playerId, gameId);
-        return updatedSession;
+        return gameSessionRepository.save(session);
     }
 
     @Override
@@ -256,9 +297,8 @@ public class GameSessionService implements IGameSessionService {
 
     private void initializeGameState(GameSession session) {
         GameState gameState = GameState.builder()
+                .gamestateId(UUID.randomUUID().toString())
                 .gameSessionId(session.getGameId())
-                .userId1(session.getWhitePlayer().getUserId())
-                .userId2(session.getBlackPlayer() != null ? session.getBlackPlayer().getUserId() : null)
                 .currentTurn(PieceColor.WHITE)
                 .moveCount(0)
                 .isCheck(false)
@@ -309,7 +349,4 @@ public class GameSessionService implements IGameSessionService {
     private String generateInviteCode() {
         return UUID.randomUUID().toString().substring(0, 8).toUpperCase();
     }
-
-
-
 }

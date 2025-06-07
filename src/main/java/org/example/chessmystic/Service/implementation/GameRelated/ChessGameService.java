@@ -6,23 +6,39 @@ import org.example.chessmystic.Models.chess.Piece;
 import org.example.chessmystic.Models.Interactions.ActionType;
 import org.example.chessmystic.Models.chess.PieceColor;
 import org.example.chessmystic.Models.chess.PieceType;
+import org.example.chessmystic.Models.GameStateandFlow.GameMode;
+import org.example.chessmystic.Models.UIUX.TieResolutionOption;
 import org.example.chessmystic.Repository.GameSessionRepository;
+import org.example.chessmystic.Repository.GameStateRepository;
+import org.example.chessmystic.Repository.RPGGameStateRepository;
 import org.example.chessmystic.Service.interfaces.GameRelated.IChessGameService;
 import org.example.chessmystic.Service.interfaces.GameRelated.IPlayerActionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Random;
+
 @Service
 public class ChessGameService implements IChessGameService {
 
     private final IPlayerActionService playerActionService;
     private final GameSessionRepository gameSessionRepository;
+    private final GameStateRepository gameStateRepository;
+    private final RPGGameStateRepository rpgGameStateRepository;
+    private final TieResolutionOptionService tieResolutionOptionService;
 
     @Autowired
-    public ChessGameService(IPlayerActionService playerActionService, GameSessionRepository gameSessionRepository) {
+    public ChessGameService(IPlayerActionService playerActionService,
+                            GameSessionRepository gameSessionRepository,
+                            GameStateRepository gameStateRepository,
+                            RPGGameStateRepository rpgGameStateRepository,
+                            TieResolutionOptionService tieResolutionOptionService) {
         this.playerActionService = playerActionService;
         this.gameSessionRepository = gameSessionRepository;
+        this.gameStateRepository = gameStateRepository;
+        this.rpgGameStateRepository = rpgGameStateRepository;
+        this.tieResolutionOptionService = tieResolutionOptionService;
     }
 
     @Override
@@ -36,41 +52,32 @@ public class ChessGameService implements IChessGameService {
 
         int fromRow = move.getRow();
         int fromCol = move.getCol();
-        int toRow = move.getRow(); // Note: BoardPosition should have from/to coordinates
-        int toCol = move.getCol(); // Adjust if BoardPosition is modified
+        int toRow = move.getTorow();
+        int toCol = move.getTocol();
 
-        // Validate coordinates
         if (!isValidPosition(fromRow, fromCol) || !isValidPosition(toRow, toCol)) {
             return false;
         }
 
         Piece movingPiece = board[fromRow][fromCol];
         if (movingPiece == null) {
-            return false; // No piece at source position
+            return false;
         }
 
-        // Check if it's the correct player's turn
         if (movingPiece.getColor() != gameState.getCurrentTurn()) {
             return false;
         }
 
-        // Validate piece-specific movement rules
         if (!isValidPieceMove(movingPiece, fromRow, fromCol, toRow, toCol, board)) {
             return false;
         }
 
-        // Check if move puts own king in check
         Piece[][] tempBoard = simulateMove(board, fromRow, fromCol, toRow, toCol);
         if (isKingInCheck(tempBoard, movingPiece.getColor())) {
             return false;
         }
 
-        // Check special moves (castling, en passant, pawn promotion)
-        if (!validateSpecialMoves(gameState, movingPiece, fromRow, fromCol, toRow, toCol, board)) {
-            return false;
-        }
-
-        return true;
+        return validateSpecialMoves(gameState, movingPiece, fromRow, fromCol, toRow, toCol, board);
     }
 
     @Override
@@ -88,56 +95,34 @@ public class ChessGameService implements IChessGameService {
 
         int fromRow = move.getRow();
         int fromCol = move.getCol();
-        int toRow = move.getRow(); // Adjust if BoardPosition changes
-        int toCol = move.getCol();
+        int toRow = move.getTorow();
+        int toCol = move.getTocol();
 
         Piece movingPiece = board[fromRow][fromCol];
         Piece targetPiece = board[toRow][toCol];
 
-        // Determine action type
-        ActionType actionType = ActionType.NORMAL;
-        if (targetPiece != null) {
-            actionType = ActionType.CAPTURE;
-        } else if (movingPiece.getType() == PieceType.KING && Math.abs(toCol - fromCol) == 2) {
-            actionType = toCol > fromCol ? ActionType.CASTLE_KINGSIDE : ActionType.CASTLE_QUEENSIDE;
-        } else if (movingPiece.getType() == PieceType.PAWN && Math.abs(toCol - fromCol) == 1 && board[toRow][toCol] == null) {
-            actionType = ActionType.EN_PASSANT;
-        } else if (movingPiece.getType() == PieceType.PAWN && (toRow == 0 || toRow == 7)) {
-            actionType = ActionType.PROMOTION;
-        } else if (movingPiece.getType() == PieceType.PAWN && Math.abs(toRow - fromRow) == 2) {
-            actionType = ActionType.DOUBLE_PAWN_PUSH;
-        }
+        ActionType actionType = determineActionType(movingPiece, targetPiece, fromRow, fromCol, toRow, toCol, board);
 
         // Update board
         movingPiece.setHasMoved(true);
         board[toRow][toCol] = movingPiece;
         board[fromRow][fromCol] = null;
 
-        // Handle special moves (e.g., castling, en passant, promotion)
         handleSpecialMoves(gameState, movingPiece, fromRow, fromCol, toRow, toCol, board);
 
-        // Record the player action
         String playerId = movingPiece.getColor() == PieceColor.WHITE
                 ? session.getWhitePlayer().getUserId()
-                : session.getBlackPlayer().getUserId();
+                : session.getBlackPlayer().get(0).getUserId(); // Assuming one black player for standard chess
+
         playerActionService.recordAction(
                 gameId, playerId, actionType, fromRow, fromCol, toRow, toCol,
-                session.getGameHistoryId(), null, 0, null, 0, false);
+                session.getGameHistoryId(), session.getRpgGameStateId(), 0, null, 0, false, false);
 
-        // Update game state
-        gameState.setMoveCount(gameState.getMoveCount() + 1);
-        gameState.setCurrentTurn(gameState.getCurrentTurn() == PieceColor.WHITE ? PieceColor.BLACK : PieceColor.WHITE);
-
-        // Check for check/checkmate
-        PieceColor opponentColor = gameState.getCurrentTurn();
-        gameState.setCheck(isKingInCheck(board, opponentColor));
-        gameState.setCheckmate(gameState.isCheck() && isCheckmate(gameId, opponentColor));
-        if (gameState.isCheck()) {
-            gameState.setCheckedPlayer(opponentColor);
-        }
+        updateGameState(gameState, board, session.getGameMode());
 
         session.setGameState(gameState);
         session.setBoard(board);
+        gameStateRepository.save(gameState);
         gameSessionRepository.save(session);
 
         return gameState;
@@ -159,8 +144,107 @@ public class ChessGameService implements IChessGameService {
             return false;
         }
 
-        // Check if any move can prevent check
+        return !hasLegalMoves(session.getBoard(), color);
+    }
+
+    public boolean isDraw(String gameId, PieceColor color) {
+        var session = gameSessionRepository.findById(gameId)
+                .orElseThrow(() -> new IllegalArgumentException("Game session not found"));
         Piece[][] board = session.getBoard();
+
+        // Stalemate: Not in check, but no legal moves
+        if (!isKingInCheck(board, color) && !hasLegalMoves(board, color)) {
+            return true;
+        }
+
+        // Insufficient material (simplified check for common cases)
+        int whiteMaterial = 0, blackMaterial = 0;
+        boolean hasNonKingPiece = false;
+        for (int row = 0; row < 8; row++) {
+            for (int col = 0; col < 8; col++) {
+                Piece piece = board[row][col];
+                if (piece != null) {
+                    if (piece.getType() != PieceType.KING) {
+                        hasNonKingPiece = true;
+                        if (piece.getColor() == PieceColor.WHITE) {
+                            whiteMaterial += getPieceValue(piece);
+                        } else {
+                            blackMaterial += getPieceValue(piece);
+                        }
+                    }
+                }
+            }
+        }
+        if (!hasNonKingPiece || (whiteMaterial <= 3 && blackMaterial <= 3)) {
+            return true; // King vs King or minor piece scenarios
+        }
+
+        // TODO: Add checks for threefold repetition, fifty-move rule
+        return false;
+    }
+
+    public TieResolutionOption selectTieResolutionOption(GameMode gameMode) {
+        if (gameMode == GameMode.SINGLE_PLAYER_RPG || gameMode == GameMode.MULTIPLAYER_RPG || gameMode == GameMode.ENHANCED_RPG) {
+            var options = tieResolutionOptionService.getAllOptions();
+            if (options.isEmpty()) {
+                return null;
+            }
+            // Weighted random selection
+            int totalWeight = options.stream().mapToInt(TieResolutionOption::getWeight).sum();
+            Random rand = new Random();
+            int randomWeight = rand.nextInt(totalWeight) + 1;
+            int cumulativeWeight = 0;
+            for (TieResolutionOption option : options) {
+                cumulativeWeight += option.getWeight();
+                if (randomWeight <= cumulativeWeight) {
+                    return option;
+                }
+            }
+        }
+        return null;
+    }
+
+    private int getPieceValue(Piece piece) {
+        switch (piece.getType()) {
+            case QUEEN: return 9;
+            case ROOK: return 5;
+            case BISHOP:
+            case KNIGHT: return 3;
+            case PAWN: return 1;
+            default: return 0;
+        }
+    }
+
+    private ActionType determineActionType(Piece movingPiece, Piece targetPiece, int fromRow, int fromCol, int toRow, int toCol, Piece[][] board) {
+        if (targetPiece != null) return ActionType.CAPTURE;
+        if (movingPiece.getType() == PieceType.KING && Math.abs(toCol - fromCol) == 2) {
+            return toCol > fromCol ? ActionType.CASTLE_KINGSIDE : ActionType.CASTLE_QUEENSIDE;
+        }
+        if (movingPiece.getType() == PieceType.PAWN && Math.abs(toCol - fromCol) == 1 && board[toRow][toCol] == null) {
+            return ActionType.EN_PASSANT;
+        }
+        if (movingPiece.getType() == PieceType.PAWN && (toRow == 0 || toRow == 7)) {
+            return ActionType.PROMOTION;
+        }
+        if (movingPiece.getType() == PieceType.PAWN && Math.abs(toRow - fromRow) == 2) {
+            return ActionType.DOUBLE_PAWN_PUSH;
+        }
+        return ActionType.NORMAL;
+    }
+
+    private void updateGameState(GameState gameState, Piece[][] board, GameMode gameMode) {
+        gameState.setMoveCount(gameState.getMoveCount() + 1);
+        PieceColor nextTurn = gameState.getCurrentTurn() == PieceColor.WHITE ? PieceColor.BLACK : PieceColor.WHITE;
+        gameState.setCurrentTurn(nextTurn);
+        gameState.setCheck(isKingInCheck(board, nextTurn));
+        gameState.setCheckmate(gameState.isCheck() && !hasLegalMoves(board, nextTurn));
+        if (gameState.isCheck()) {
+            gameState.setCheckedPlayer(nextTurn);
+        }
+        gameState.setGameOver(gameState.isCheckmate() || isDraw(gameState.getGameSessionId(), nextTurn));
+    }
+
+    private boolean hasLegalMoves(Piece[][] board, PieceColor color) {
         for (int row = 0; row < 8; row++) {
             for (int col = 0; col < 8; col++) {
                 Piece piece = board[row][col];
@@ -170,7 +254,7 @@ public class ChessGameService implements IChessGameService {
                             if (isValidPieceMove(piece, row, col, toRow, toCol, board)) {
                                 Piece[][] tempBoard = simulateMove(board, row, col, toRow, toCol);
                                 if (!isKingInCheck(tempBoard, color)) {
-                                    return false; // Found a move to escape check
+                                    return true;
                                 }
                             }
                         }
@@ -178,7 +262,7 @@ public class ChessGameService implements IChessGameService {
                 }
             }
         }
-        return true;
+        return false;
     }
 
     private boolean isValidPosition(int row, int col) {
@@ -186,13 +270,11 @@ public class ChessGameService implements IChessGameService {
     }
 
     private boolean isValidPieceMove(Piece piece, int fromRow, int fromCol, int toRow, int toCol, Piece[][] board) {
-        // Basic piece movement rules
         switch (piece.getType()) {
             case KING:
                 return Math.abs(toRow - fromRow) <= 1 && Math.abs(toCol - fromCol) <= 1;
             case QUEEN:
-                return isValidRookMove(fromRow, fromCol, toRow, toCol, board) ||
-                        isValidBishopMove(fromRow, fromCol, toRow, toCol, board);
+                return isValidRookMove(fromRow, fromCol, toRow, toCol, board) || isValidBishopMove(fromRow, fromCol, toRow, toCol, board);
             case ROOK:
                 return isValidRookMove(fromRow, fromCol, toRow, toCol, board);
             case BISHOP:
@@ -209,17 +291,13 @@ public class ChessGameService implements IChessGameService {
     }
 
     private boolean isValidRookMove(int fromRow, int fromCol, int toRow, int toCol, Piece[][] board) {
-        if (fromRow != toRow && fromCol != toCol) {
-            return false;
-        }
+        if (fromRow != toRow && fromCol != toCol) return false;
         int stepRow = fromRow == toRow ? 0 : (toRow > fromRow ? 1 : -1);
         int stepCol = fromCol == toCol ? 0 : (toCol > fromCol ? 1 : -1);
         int row = fromRow + stepRow;
         int col = fromCol + stepCol;
         while (row != toRow || col != toCol) {
-            if (board[row][col] != null) {
-                return false; // Path is blocked
-            }
+            if (board[row][col] != null) return false;
             row += stepRow;
             col += stepCol;
         }
@@ -227,17 +305,13 @@ public class ChessGameService implements IChessGameService {
     }
 
     private boolean isValidBishopMove(int fromRow, int fromCol, int toRow, int toCol, Piece[][] board) {
-        if (Math.abs(toRow - fromRow) != Math.abs(toCol - fromCol)) {
-            return false;
-        }
+        if (Math.abs(toRow - fromRow) != Math.abs(toCol - fromCol)) return false;
         int stepRow = toRow > fromRow ? 1 : -1;
         int stepCol = toCol > fromCol ? 1 : -1;
         int row = fromRow + stepRow;
         int col = fromCol + stepCol;
-        while (row != toRow && col != toCol) {
-            if (board[row][col] != null) {
-                return false; // Path is blocked
-            }
+        while (row != toRow || col != toCol) {
+            if (board[row][col] != null) return false;
             row += stepRow;
             col += stepCol;
         }
@@ -248,58 +322,37 @@ public class ChessGameService implements IChessGameService {
         int direction = piece.getColor() == PieceColor.WHITE ? 1 : -1;
         int startRow = piece.getColor() == PieceColor.WHITE ? 1 : 6;
 
-        // Move forward
         if (fromCol == toCol && board[toRow][toCol] == null) {
-            if (toRow == fromRow + direction) {
-                return true;
-            }
-            if (fromRow == startRow && toRow == fromRow + 2 * direction && board[fromRow + direction][fromCol] == null) {
-                return true;
-            }
+            if (toRow == fromRow + direction) return true;
+            if (fromRow == startRow && toRow == fromRow + 2 * direction && board[fromRow + direction][fromCol] == null) return true;
         }
-        // Capture
-        if (Math.abs(toCol - fromCol) == 1 && toRow == fromRow + direction && board[toRow][toCol] != null &&
-                board[toRow][toCol].getColor() != piece.getColor()) {
-            return true;
-        }
-        // En passant (simplified)
-        if (Math.abs(toCol - fromCol) == 1 && toRow == fromRow + direction && board[toRow - direction][toCol] != null &&
-                board[toRow - direction][toCol].isEnPassantTarget()) {
-            return true;
+        if (Math.abs(toCol - fromCol) == 1 && toRow == fromRow + direction) {
+            if (board[toRow][toCol] != null && board[toRow][toCol].getColor() != piece.getColor()) return true;
+            if (board[toRow - direction][toCol] != null && board[toRow - direction][toCol].isEnPassantTarget()) return true;
         }
         return false;
     }
 
     private boolean validateSpecialMoves(GameState gameState, Piece piece, int fromRow, int fromCol, int toRow, int toCol, Piece[][] board) {
-        // Handle castling
         if (piece.getType() == PieceType.KING && Math.abs(toCol - fromCol) == 2) {
             boolean isKingSide = toCol > fromCol;
             boolean canCastle = piece.getColor() == PieceColor.WHITE ?
                     (isKingSide ? gameState.isCanWhiteCastleKingSide() : gameState.isCanWhiteCastleQueenSide()) :
                     (isKingSide ? gameState.isCanBlackCastleKingSide() : gameState.isCanBlackCastleQueenSide());
-            if (!canCastle || piece.isHasMoved()) {
-                return false;
-            }
-            // Check rook availability and path clearance
+            if (!canCastle || piece.isHasMoved()) return false;
             int rookCol = isKingSide ? 7 : 0;
             Piece rook = board[fromRow][rookCol];
-            if (rook == null || rook.getType() != PieceType.ROOK || rook.isHasMoved()) {
-                return false;
-            }
-            // Check path clearance
+            if (rook == null || rook.getType() != PieceType.ROOK || rook.isHasMoved()) return false;
             int step = isKingSide ? 1 : -1;
             for (int col = fromCol + step; col != rookCol; col += step) {
-                if (board[fromRow][col] != null) {
-                    return false;
-                }
+                if (board[fromRow][col] != null) return false;
             }
             return true;
         }
-        return true; // Other special moves (en passant, promotion) handled in executeMove
+        return true;
     }
 
     private void handleSpecialMoves(GameState gameState, Piece piece, int fromRow, int fromCol, int toRow, int toCol, Piece[][] board) {
-        // Handle castling
         if (piece.getType() == PieceType.KING && Math.abs(toCol - fromCol) == 2) {
             boolean isKingSide = toCol > fromCol;
             int rookCol = isKingSide ? 7 : 0;
@@ -307,7 +360,6 @@ public class ChessGameService implements IChessGameService {
             Piece rook = board[fromRow][rookCol];
             board[fromRow][rookToCol] = rook;
             board[fromRow][rookCol] = null;
-            // Update castling availability
             if (piece.getColor() == PieceColor.WHITE) {
                 gameState.setCanWhiteCastleKingSide(false);
                 gameState.setCanWhiteCastleQueenSide(false);
@@ -316,16 +368,13 @@ public class ChessGameService implements IChessGameService {
                 gameState.setCanBlackCastleQueenSide(false);
             }
         }
-        // Handle en passant
         if (piece.getType() == PieceType.PAWN && Math.abs(toCol - fromCol) == 1 && board[toRow][toCol] == null) {
             int direction = piece.getColor() == PieceColor.WHITE ? 1 : -1;
-            board[toRow - direction][toCol] = null; // Remove captured pawn
+            board[toRow - direction][toCol] = null;
         }
-        // Handle pawn promotion (simplified to always promote to queen)
         if (piece.getType() == PieceType.PAWN && (toRow == 0 || toRow == 7)) {
             piece.setType(PieceType.QUEEN);
         }
-        // Update en passant target
         if (piece.getType() == PieceType.PAWN && Math.abs(toRow - fromRow) == 2) {
             piece.setEnPassantTarget(true);
             gameState.setEnPassantTarget(new BoardPosition((fromRow + toRow) / 2, toCol));
@@ -333,30 +382,25 @@ public class ChessGameService implements IChessGameService {
             gameState.setEnPassantTarget(null);
             for (int row = 0; row < 8; row++) {
                 for (int col = 0; col < 8; col++) {
-                    if (board[row][col] != null) {
-                        board[row][col].setEnPassantTarget(false);
-                    }
+                    if (board[row][col] != null) board[row][col].setEnPassantTarget(false);
                 }
             }
         }
     }
 
     private boolean isKingInCheck(Piece[][] board, PieceColor color) {
-        // Find king's position
         BoardPosition kingPos = null;
         for (int row = 0; row < 8; row++) {
             for (int col = 0; col < 8; col++) {
-                if (board[row][col] != null && board[row][col].getType() == PieceType.KING &&
-                        board[row][col].getColor() == color) {
+                if (board[row][col] != null && board[row][col].getType() == PieceType.KING && board[row][col].getColor() == color) {
                     kingPos = new BoardPosition(row, col);
                     break;
                 }
             }
             if (kingPos != null) break;
         }
-        if (kingPos == null) return false; // No king (shouldn't happen in valid game)
+        if (kingPos == null) return false;
 
-        // Check if any opponent piece can attack the king
         PieceColor opponentColor = color == PieceColor.WHITE ? PieceColor.BLACK : PieceColor.WHITE;
         for (int row = 0; row < 8; row++) {
             for (int col = 0; col < 8; col++) {

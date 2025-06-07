@@ -11,7 +11,7 @@ public interface IPlayerActionService {
     PlayerAction recordAction(String gameSessionId, String playerId, ActionType actionType,
                               int fromX, int fromY, int toX, int toY, String gameHistoryId,
                               String rpgGameStateId, int roundNumber, String abilityUsed,
-                              int damageDealt, boolean isCriticalHit);
+                              int damageDealt, boolean isCriticalHit, boolean b);
 
     List<PlayerAction> getActionsForGameSession(String gameSessionId);
 

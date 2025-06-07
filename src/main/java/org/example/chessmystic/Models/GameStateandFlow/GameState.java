@@ -3,6 +3,7 @@ package org.example.chessmystic.Models.GameStateandFlow;
 import lombok.*;
 import org.example.chessmystic.Models.chess.BoardPosition;
 import org.example.chessmystic.Models.chess.PieceColor;
+import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
 
 @Getter
@@ -11,11 +12,15 @@ import org.springframework.data.mongodb.core.index.Indexed;
 @AllArgsConstructor
 @Builder
 public class GameState {
+    @Id
+    private String gamestateId;
+
     @Indexed
     private String gameSessionId;
 
-    private String userId1;
-    private String userId2;
+
+    private boolean isGameOver;
+
     private boolean isCheck;
     private boolean isCheckmate;
     private PieceColor checkedPlayer;

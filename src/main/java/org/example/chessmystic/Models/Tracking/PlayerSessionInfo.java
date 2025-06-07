@@ -1,7 +1,7 @@
 package org.example.chessmystic.Models.Tracking;
 
 import lombok.*;
-import org.example.chessmystic.Models.Stats.PlayerStats;
+import org.example.chessmystic.Models.Stats.PlayerGameStats;
 import org.springframework.data.annotation.Id;
 
 import java.time.LocalDateTime;
@@ -22,5 +22,7 @@ public class PlayerSessionInfo {
     private String sessionId; // WebSocket/HTTP session
     private boolean isConnected;
     private LocalDateTime lastSeen;
-    private PlayerStats currentStats;
+    private PlayerGameStats currentStats;
+
+    private boolean CurrentTurn = false;
 }

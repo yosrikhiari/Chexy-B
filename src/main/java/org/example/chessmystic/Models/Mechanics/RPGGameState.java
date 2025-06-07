@@ -24,12 +24,6 @@ public class RPGGameState {
     @Id
     private String gameId;
 
-    // FIXED: Consistent user references
-    @Indexed
-    private String userId; // Link to User.id
-    private String playerKeycloakId; // Link to User.keycloakId for auth
-    private String playerName; // Cached for quick access
-
     // GAME PROGRESSION
     private int currentRound;
     private List<RPGPiece> playerArmy;
@@ -59,8 +53,6 @@ public class RPGGameState {
     private GameStatus status;
 
     // MULTIPLAYER SUPPORT (when applicable)
-    private String opponentId;
-    private String opponentName;
     private boolean isPlayerTurn;
 
     // FIXED: Add missing links for proper game management

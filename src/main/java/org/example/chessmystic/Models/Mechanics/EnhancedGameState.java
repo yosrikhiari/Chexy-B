@@ -18,7 +18,7 @@ public class EnhancedGameState extends RPGGameState {
     private int difficulty;
     private List<EnhancedRPGPiece> enemyArmy;
     private AIStrategy aiStrategy;
-    private int teleportPortals;
+    private int teleportPortalsnumber;
     private RoundProgression roundProgression;
 
     // For UI positioning

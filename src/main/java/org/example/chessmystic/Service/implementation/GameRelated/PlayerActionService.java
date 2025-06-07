@@ -31,15 +31,12 @@ public class PlayerActionService implements IPlayerActionService {
         this.gameHistoryService = gameHistoryService;
     }
 
-    @Transactional
     @Override
+    @Transactional
     public PlayerAction recordAction(String gameSessionId, String playerId, ActionType actionType,
                                      int fromX, int fromY, int toX, int toY, String gameHistoryId,
                                      String rpgGameStateId, int roundNumber, String abilityUsed,
-                                     int damageDealt, boolean isCriticalHit) {
-        logger.info("Recording player action for game: {}, player: {}", gameSessionId, playerId);
-
-        // Fetch the latest sequence number for this game session
+                                     int damageDealt, boolean isCriticalHit, boolean b) {
         List<PlayerAction> actions = playerActionRepository.findByGameSessionIdOrderBySequenceNumberAsc(gameSessionId);
         int sequenceNumber = actions.isEmpty() ? 1 : actions.get(actions.size() - 1).getSequenceNumber() + 1;
 
@@ -61,9 +58,7 @@ public class PlayerActionService implements IPlayerActionService {
                 .build();
 
         PlayerAction savedAction = playerActionRepository.save(action);
-        logger.info("Player action recorded: {}", savedAction.getId());
 
-        // Link to GameSession
         var session = gameSessionService.findById(gameSessionId)
                 .orElseThrow(() -> new RuntimeException("Game session not found"));
         if (session.getMoveHistoryIds() == null) {
@@ -72,7 +67,6 @@ public class PlayerActionService implements IPlayerActionService {
         session.getMoveHistoryIds().add(savedAction.getId());
         gameSessionService.updateGameStatus(gameSessionId, session.getStatus());
 
-        // Link to GameHistory
         if (gameHistoryId != null) {
             gameHistoryService.addPlayerAction(gameHistoryId, savedAction.getId());
         }
