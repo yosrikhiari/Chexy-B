@@ -57,7 +57,7 @@ public class GameOrchestrationService {
 
         String playerId = movingPiece.getColor() == PieceColor.WHITE
                 ? session.getWhitePlayer().getUserId()
-                : session.getBlackPlayer().get(0).getUserId();
+                : session.getBlackPlayer().getFirst().getUserId();
 
         playerActionService.recordAction(
                 gameId, playerId, actionType, fromRow, fromCol, toRow, toCol,

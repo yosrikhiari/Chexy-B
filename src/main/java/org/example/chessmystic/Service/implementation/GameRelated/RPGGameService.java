@@ -22,7 +22,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 public class RPGGameService implements IRPGGameService {
@@ -41,8 +40,6 @@ public class RPGGameService implements IRPGGameService {
     private final PlayerPurchaseHistoryRepository playerPurchaseHistoryRepository;
     private final GameHistoryRepository gameHistoryRepository;
     private final GameResultRepository gameResultRepository;
-    private final RPGPieceRepository rpgPieceRepository;
-    private final RPGModifierRepository rpgModifierRepository;
 
     @Autowired
     public RPGGameService(RPGGameStateRepository rpgGameStateRepository,
@@ -72,8 +69,6 @@ public class RPGGameService implements IRPGGameService {
         this.playerPurchaseHistoryRepository = playerPurchaseHistoryRepository;
         this.gameHistoryRepository = gameHistoryRepository;
         this.gameResultRepository = gameResultRepository;
-        this.rpgPieceRepository = rpgPieceRepository;
-        this.rpgModifierRepository = rpgModifierRepository;
     }
 
     @Override

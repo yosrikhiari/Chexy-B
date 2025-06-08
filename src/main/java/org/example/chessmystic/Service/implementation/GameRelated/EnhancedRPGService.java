@@ -35,9 +35,7 @@ public class EnhancedRPGService implements IEnhancedRPGService {
     private final GameSessionService gameSessionService;
     private final GameSessionRepository gamesessionrepository;
     private final RPGBossRepository rpgBossRepository;
-    private final RPGModifierRepository rpgModifierRepository;
     private final BoardEffectRepository boardEffectRepository;
-    private final RPGPieceRepository rpgPieceRepository;
     private final PlayerProfileRepository playerProfileRepository;
 
     @Autowired
@@ -54,9 +52,7 @@ public class EnhancedRPGService implements IEnhancedRPGService {
         this.gameSessionService = gameSessionService;
         this.gamesessionrepository = gamesessionrepository;
         this.rpgBossRepository = rpgBossRepository;
-        this.rpgModifierRepository = rpgModifierRepository;
         this.boardEffectRepository = boardEffectRepository;
-        this.rpgPieceRepository = rpgPieceRepository;
         this.playerProfileRepository = playerProfileRepository;
     }
 

@@ -15,13 +15,9 @@ import org.springframework.web.bind.annotation.RestController;
 public class GameController {
 
     private final GameOrchestrationService gameOrchestrationService;
-    private final ChessGameService chessGameService;
-    private final GameSessionService gameSessionService;
 
     public GameController(GameOrchestrationService gameOrchestrationService, ChessGameService chessGameService, GameSessionService gameSessionService) {
         this.gameOrchestrationService = gameOrchestrationService;
-        this.chessGameService = chessGameService;
-        this.gameSessionService = gameSessionService;
     }
 
     @PostMapping("/games/{gameId}/moves")

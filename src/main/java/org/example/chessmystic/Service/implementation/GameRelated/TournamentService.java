@@ -56,9 +56,6 @@ public class TournamentService implements ITournamentService {
     public void scheduleMatches(String tournamentId) {
         Tournament tournament = tournamentRepository.findById(tournamentId)
                 .orElseThrow(() -> new RuntimeException("Tournament not found"));
-
-        // In a real implementation, this would schedule matches with proper timing
-        // For now, we'll just start all games immediately
         tournament.getGameSessionIds().forEach(gameSessionService::startGame);
     }
 }
