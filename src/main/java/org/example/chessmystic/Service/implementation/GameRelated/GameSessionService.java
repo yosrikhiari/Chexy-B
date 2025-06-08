@@ -1,6 +1,9 @@
 package org.example.chessmystic.Service.implementation.GameRelated;
 
 import org.example.chessmystic.Models.GameStateandFlow.*;
+import org.example.chessmystic.Models.Mechanics.RPGGameState;
+import org.example.chessmystic.Models.Stats.PlayerGameStats;
+import org.example.chessmystic.Models.Stats.PlayerProfile;
 import org.example.chessmystic.Models.UIUX.TieResolutionOption;
 import org.example.chessmystic.Models.chess.Piece;
 import org.example.chessmystic.Models.chess.PieceColor;
@@ -10,6 +13,9 @@ import org.example.chessmystic.Models.Tracking.GameHistory;
 import org.example.chessmystic.Models.Tracking.GameResult;
 import org.example.chessmystic.Models.Tracking.PlayerSessionInfo;
 import org.example.chessmystic.Repository.GameSessionRepository;
+import org.example.chessmystic.Repository.PlayerProfileRepository;
+import org.example.chessmystic.Repository.RPGGameStateRepository;
+import org.example.chessmystic.Repository.UserRepository;
 import org.example.chessmystic.Service.implementation.UserService;
 import org.example.chessmystic.Service.interfaces.GameRelated.IGameSessionService;
 import org.slf4j.Logger;
@@ -28,15 +34,23 @@ public class GameSessionService implements IGameSessionService {
     private final GameSessionRepository gameSessionRepository;
     private final UserService userService;
     private final GameHistoryService gameHistoryService;
+    private final PlayerProfileRepository playerProfileRepository;
+    private final UserRepository userRepository;
+    private final RPGGameStateRepository rpgGameStateRepository;
+
 
     @Autowired
     public GameSessionService(GameSessionRepository gameSessionRepository,
                               UserService userService,
                               GameHistoryService gameHistoryService,
-                              ChessGameService chessGameService) {
+                              ChessGameService chessGameService,
+                              PlayerProfileRepository playerProfileRepository, UserRepository userRepository, RPGGameStateRepository rpgGameStateRepository) {
         this.gameSessionRepository = gameSessionRepository;
         this.userService = userService;
         this.gameHistoryService = gameHistoryService;
+        this.playerProfileRepository = playerProfileRepository;
+        this.userRepository = userRepository;
+        this.rpgGameStateRepository = rpgGameStateRepository;
     }
 
     @Override
@@ -189,25 +203,17 @@ public class GameSessionService implements IGameSessionService {
                 resultBuilder.winner(session.getWhitePlayer().getUserId().equals(winnerId) ? PieceColor.WHITE : PieceColor.BLACK);
             }
         } else {
-            // Check for draw
             if (isDraw) {
-                if (tieOption != null) {
-                    // For simplicity, assume tie resolution picks a winner randomly for MULTIPLAYER_RPG
-                    if (session.getGameMode() == GameMode.MULTIPLAYER_RPG) {
-                        List<String> playerIds = session.getPlayerIds();
-                        winnerId = playerIds.get(new Random().nextInt(playerIds.size()));
-                        resultBuilder.winnerid(winnerId)
-                                .winner(session.getWhitePlayer().getUserId().equals(winnerId) ? PieceColor.WHITE : PieceColor.BLACK)
-                                .winnerName(userService.findById(winnerId)
-                                        .map(u -> u.getFirstName() + " " + u.getLastName())
-                                        .orElse("Unknown"))
-                                .gameEndReason(GameEndReason.TIE_RESOLVED)
-                                .tieResolutionOption(tieOption);
-                    } else {
-                        // For single-player RPG or Enhanced RPG, no winner
-                        resultBuilder.gameEndReason(GameEndReason.DRAW)
-                                .tieResolutionOption(tieOption);
-                    }
+                if (tieOption != null && session.getGameMode() == GameMode.MULTIPLAYER_RPG) {
+                    List<String> playerIds = session.getPlayerIds();
+                    winnerId = playerIds.get(new Random().nextInt(playerIds.size()));
+                    resultBuilder.winnerid(winnerId)
+                            .winner(session.getWhitePlayer().getUserId().equals(winnerId) ? PieceColor.WHITE : PieceColor.BLACK)
+                            .winnerName(userService.findById(winnerId)
+                                    .map(u -> u.getFirstName() + " " + u.getLastName())
+                                    .orElse("Unknown"))
+                            .gameEndReason(GameEndReason.TIE_RESOLVED)
+                            .tieResolutionOption(tieOption);
                 } else {
                     resultBuilder.gameEndReason(GameEndReason.DRAW);
                 }
@@ -217,11 +223,104 @@ public class GameSessionService implements IGameSessionService {
         }
 
         GameResult result = resultBuilder.build();
+        updatePlayerStats(session, winnerId, isDraw, result);
         GameSession updatedSession = gameSessionRepository.save(session);
         gameHistoryService.updateGameHistory(session.getGameHistoryId(), result, LocalDateTime.now());
 
         logger.info("Game ended: {}, winner: {}", gameId, winnerId != null ? winnerId : "none");
         return updatedSession;
+    }
+
+    private void updatePlayerStats(GameSession session, String winnerId, boolean isDraw, GameResult result) {
+        List<String> playerIds = session.getPlayerIds();
+        boolean isRPGMode = session.getGameMode() == GameMode.SINGLE_PLAYER_RPG ||
+                session.getGameMode() == GameMode.MULTIPLAYER_RPG ||
+                session.getGameMode() == GameMode.ENHANCED_RPG;
+
+        for (String playerId : playerIds) {
+            PlayerProfile profile = userService.getOrCreatePlayerProfile(playerId);
+            PlayerGameStats stats = profile.getGameStats();
+            if (stats == null) {
+                stats = PlayerGameStats.builder()
+                        .totalGamesPlayed(0)
+                        .totalGamesWon(0)
+                        .classicGamesPlayed(0)
+                        .classicGamesWon(0)
+                        .rpgGamesPlayed(0)
+                        .rpgGamesWon(0)
+                        .highestRPGRound(0)
+                        .totalRPGScore(0)
+                        .winRate(0.0)
+                        .currentStreak(0)
+                        .build();
+                profile.setGameStats(stats);
+            }
+
+            // Create a final reference for use in lambda
+            final PlayerGameStats finalStats = stats;
+
+            // Update game counts
+            stats.setTotalGamesPlayed(stats.getTotalGamesPlayed() + 1);
+            if (isRPGMode) {
+                stats.setRpgGamesPlayed(stats.getRpgGamesPlayed() + 1);
+            } else {
+                stats.setClassicGamesPlayed(stats.getClassicGamesPlayed() + 1);
+            }
+
+            // Update win counts and streak
+            boolean isWinner = playerId.equals(winnerId);
+            if (isWinner) {
+                stats.setTotalGamesWon(stats.getTotalGamesWon() + 1);
+                if (isRPGMode) {
+                    stats.setRpgGamesWon(stats.getRpgGamesWon() + 1);
+                } else {
+                    stats.setClassicGamesWon(stats.getClassicGamesWon() + 1);
+                }
+                stats.setCurrentStreak(stats.getCurrentStreak() >= 0 ? stats.getCurrentStreak() + 1 : 1);
+            } else if (!isDraw) {
+                stats.setCurrentStreak(stats.getCurrentStreak() <= 0 ? stats.getCurrentStreak() - 1 : -1);
+            } else {
+                stats.setCurrentStreak(0); // Reset streak on draw
+            }
+
+            // Update RPG-specific stats
+            if (isRPGMode) {
+                int currentRound = 0;
+                if (session.getRpgGameStateId() != null) {
+                    RPGGameState rpgGameState = rpgGameStateRepository.findById(session.getRpgGameStateId())
+                            .orElse(null);
+                    if (rpgGameState != null) {
+                        currentRound = rpgGameState.getCurrentRound();
+                        stats.setTotalRPGScore(stats.getTotalRPGScore() + rpgGameState.getScore());
+                    }
+                }
+                stats.setHighestRPGRound(Math.max(stats.getHighestRPGRound(), currentRound));
+            }
+
+            // Update win rate
+            stats.setWinRate((double) stats.getTotalGamesWon() / stats.getTotalGamesPlayed() * 100);
+
+            // Update last game played
+            stats.setLastGamePlayed(LocalDateTime.now());
+
+            // Update user points (e.g., +10 for win, +5 for draw, +0 for loss)
+            int pointsToAdd = isWinner ? 10 : (isDraw ? 5 : 0);
+            userService.updateUserPoints(playerId, pointsToAdd);
+
+            // Update profile fields
+            profile.setGamesPlayed(stats.getTotalGamesPlayed());
+            profile.setGamesWon(stats.getTotalGamesWon());
+            profile.setLastUpdated(LocalDateTime.now());
+
+            // Save the updated profile
+            playerProfileRepository.save(profile);
+
+            // Update the user's gameStats reference
+            userService.findById(playerId).ifPresent(user -> {
+                user.setGameStats(finalStats);
+                userRepository.save(user);
+            });
+        }
     }
 
     @Override
