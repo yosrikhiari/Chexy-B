@@ -65,6 +65,7 @@ public class GameSession {
     private List<String> spectatorIds;
 
 
+    private String BotId;
 
     private String gameHistoryId; // Link to GameHistory record
     private List<String> moveHistoryIds; // Links to PlayerAction records

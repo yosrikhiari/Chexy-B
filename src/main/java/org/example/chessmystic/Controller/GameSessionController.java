@@ -1,6 +1,7 @@
 package org.example.chessmystic.Controller;
 
 import org.example.chessmystic.Models.GameStateandFlow.GameMode;
+import org.example.chessmystic.Models.GameStateandFlow.GameState;
 import org.example.chessmystic.Models.GameStateandFlow.GameStatus;
 import org.example.chessmystic.Models.Tracking.GameSession;
 import org.example.chessmystic.Models.UIUX.TieResolutionOption;
@@ -9,9 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 @RestController
 @RequestMapping("/game-session")
@@ -24,7 +23,6 @@ public class GameSessionController {
         this.gameSessionService = gameSessionService;
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PostMapping
     public ResponseEntity<?> createGameSession(@RequestParam String playerId,
                                                @RequestParam GameMode gameMode,
@@ -41,7 +39,6 @@ public class GameSessionController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @GetMapping("/{gameId}")
     public ResponseEntity<?> findById(@PathVariable String gameId) {
         try {
@@ -55,7 +52,6 @@ public class GameSessionController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @GetMapping("/invite/{inviteCode}")
     public ResponseEntity<?> findByInviteCode(@PathVariable String inviteCode) {
         try {
@@ -69,7 +65,6 @@ public class GameSessionController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PostMapping("/join/{gameId}")
     public ResponseEntity<?> joinGame(@PathVariable String gameId,
                                       @RequestParam String playerId,
@@ -85,7 +80,6 @@ public class GameSessionController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PostMapping("/start/{gameId}")
     public ResponseEntity<?> startGame(@PathVariable String gameId) {
         try {
@@ -99,7 +93,6 @@ public class GameSessionController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PostMapping("/end/{gameId}")
     public ResponseEntity<?> endGame(@PathVariable String gameId,
                                      @RequestParam(required = false) String winnerId,
@@ -116,7 +109,6 @@ public class GameSessionController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @GetMapping("/active/{playerId}")
     public ResponseEntity<List<GameSession>> findActiveGamesForPlayer(@PathVariable String playerId) {
         try {
@@ -127,7 +119,6 @@ public class GameSessionController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @GetMapping("/available")
     public ResponseEntity<List<GameSession>> findAvailableGames() {
         try {
@@ -138,7 +129,6 @@ public class GameSessionController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PatchMapping("/status/{gameId}")
     public ResponseEntity<?> updateGameStatus(@PathVariable String gameId, @RequestParam GameStatus status) {
         try {
@@ -152,7 +142,6 @@ public class GameSessionController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PatchMapping("/last-seen/{gameId}/{playerId}")
     public ResponseEntity<?> updatePlayerLastSeen(@PathVariable String gameId, @PathVariable String playerId) {
         try {
@@ -166,7 +155,6 @@ public class GameSessionController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PostMapping("/reconnect/{gameId}/{playerId}")
     public ResponseEntity<?> reconnectPlayer(@PathVariable String gameId, @PathVariable String playerId) {
         try {
@@ -180,7 +168,6 @@ public class GameSessionController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @GetMapping("/mode/{gameMode}")
     public ResponseEntity<List<GameSession>> findGamesByMode(@PathVariable GameMode gameMode) {
         try {
@@ -190,4 +177,17 @@ public class GameSessionController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(List.of());
         }
     }
+
+    @GetMapping("/FindByGS/{gamestateid}")
+    public Object getGameSessionByGameStateId(@PathVariable String gamestateid) {
+        try {
+            GameSession session = gameSessionService.getGameSessionByGameStateId(gamestateid);
+            return session;
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(List.of());
+        }
+    }
+
+
+
 }

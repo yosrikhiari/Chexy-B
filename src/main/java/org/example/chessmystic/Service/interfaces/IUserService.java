@@ -27,4 +27,6 @@ public interface IUserService {
     List<User> getLeaderboard(int limit);
     void updateUserPoints(String userId, int points);
     PlayerProfile getOrCreatePlayerProfile(String userId);
+
+    Optional<User> findByUserId(String Id);
 }

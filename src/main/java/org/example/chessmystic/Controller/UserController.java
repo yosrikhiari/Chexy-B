@@ -21,7 +21,6 @@ public class UserController {
         this.userService = userService;
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @GetMapping("/current")
     public ResponseEntity<?> getCurrentUser(@RequestParam String keycloakId) {
         try {
@@ -35,7 +34,6 @@ public class UserController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PatchMapping("/update")
     public ResponseEntity<?> updateCurrentUser(@RequestHeader("Authorization") String authHeader,
                                                @RequestBody UserUpdateDTO dto) {
@@ -50,7 +48,6 @@ public class UserController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PatchMapping("/points")
     public ResponseEntity<?> updateUserPoints(@RequestParam String userId, @RequestParam int points) {
         try {
@@ -64,7 +61,6 @@ public class UserController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @GetMapping("/leaderboard")
     public ResponseEntity<List<User>> getLeaderboard(@RequestParam(defaultValue = "10") int limit) {
         try {
@@ -75,7 +71,6 @@ public class UserController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PatchMapping("/deactivate")
     public ResponseEntity<?> deactivateUser(@RequestParam String id) {
         try {
@@ -89,7 +84,6 @@ public class UserController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @DeleteMapping
     public ResponseEntity<?> deleteUser(@RequestParam String id) {
         try {
@@ -103,7 +97,6 @@ public class UserController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PatchMapping("/update/{userId}")
     public ResponseEntity<?> updateUser(@PathVariable String userId, @RequestBody UserUpdateDTO dto) {
         try {
@@ -117,7 +110,6 @@ public class UserController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @GetMapping("/all-active")
     public ResponseEntity<List<User>> getAllActiveUsers() {
         try {
@@ -128,7 +120,6 @@ public class UserController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @GetMapping("/username/{username}")
     public ResponseEntity<?> findByUsername(@PathVariable String username) {
         try {
@@ -142,7 +133,6 @@ public class UserController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @GetMapping("/email/{email}")
     public ResponseEntity<?> findByEmail(@PathVariable String email) {
         try {
@@ -156,7 +146,21 @@ public class UserController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
+    @GetMapping("/id/{id}")
+    public ResponseEntity<?> findByUserId(@PathVariable String id) {
+        try {
+            Optional<User> user = userService.findByUserId(id);
+            return user.map(ResponseEntity::ok)
+                    .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                            .body((User) Map.of("error", "User not found")));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to find user", "message", "An unexpected error occurred"));
+        }
+    }
+
+
+
     @PostMapping
     public ResponseEntity<?> createUser(@RequestBody User user) {
         try {
@@ -169,4 +173,7 @@ public class UserController {
                     .body(Map.of("error", "Failed to create user", "message", "An unexpected error occurred"));
         }
     }
+
+
+
 }

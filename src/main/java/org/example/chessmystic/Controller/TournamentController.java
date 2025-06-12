@@ -18,7 +18,6 @@ public class TournamentController {
         this.tournamentService = tournamentService;
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PostMapping
     public ResponseEntity<?> createTournament(@RequestBody Tournament tournament) {
         try {
@@ -30,7 +29,6 @@ public class TournamentController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PostMapping("/bracket/{tournamentId}")
     public ResponseEntity<?> generateBracket(@PathVariable String tournamentId) {
         try {
@@ -44,7 +42,6 @@ public class TournamentController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PostMapping("/schedule/{tournamentId}")
     public ResponseEntity<?> scheduleMatches(@PathVariable String tournamentId) {
         try {

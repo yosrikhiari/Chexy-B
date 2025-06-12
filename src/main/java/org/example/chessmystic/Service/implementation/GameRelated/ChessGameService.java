@@ -12,6 +12,8 @@ import org.example.chessmystic.Repository.GameSessionRepository;
 import org.example.chessmystic.Repository.GameStateRepository;
 import org.example.chessmystic.Repository.RPGGameStateRepository;
 import org.example.chessmystic.Service.interfaces.GameRelated.IChessGameService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +22,8 @@ import java.util.Random;
 
 @Service
 public class ChessGameService implements IChessGameService {
+    private static final Logger logger = LoggerFactory.getLogger(ChessGameService.class);
+
 
     private final GameSessionRepository gameSessionRepository;
     private final TieResolutionOptionService tieResolutionOptionService;
@@ -77,7 +81,12 @@ public class ChessGameService implements IChessGameService {
     public boolean isCheck(String gameId, PieceColor color) {
         var session = gameSessionRepository.findById(gameId)
                 .orElseThrow(() -> new IllegalArgumentException("Game session not found"));
-        return isKingInCheck(session.getBoard(), color);
+        Piece[][] board = session.getBoard();
+        if (board == null) {
+            System.err.println("Board is null for game session: " + gameId);
+            return false; // Assume not in check if board is uninitialized
+        }
+        return isKingInCheck(board, color);
     }
 
     @Override
@@ -351,7 +360,7 @@ public class ChessGameService implements IChessGameService {
 
 
     public TieResolutionOption selectTieResolutionOption(GameMode gameMode) {
-        if (gameMode == GameMode.SINGLE_PLAYER_RPG || gameMode == GameMode.MULTIPLAYER_RPG || gameMode == GameMode.ENHANCED_RPG) {
+        if (gameMode == GameMode.SINGLE_PLAYER_RPG || gameMode == GameMode.MULTIPLAYER_RPG) {
             var options = tieResolutionOptionService.getAllOptions();
             if (options.isEmpty()) {
                 return null;
@@ -370,4 +379,6 @@ public class ChessGameService implements IChessGameService {
         }
         return null;
     }
+
+
 }

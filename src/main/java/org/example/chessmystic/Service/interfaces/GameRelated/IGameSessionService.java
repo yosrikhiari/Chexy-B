@@ -25,4 +25,6 @@ public interface IGameSessionService {
     GameSession reconnectPlayer(String gameId, String playerId);
     List<GameSession> findGamesByMode(GameMode gameMode);
     Optional<GameSession> findByInviteCode(String inviteCode);
+
+    GameSession getGameSessionByGameStateId(String gameStateId);
 }

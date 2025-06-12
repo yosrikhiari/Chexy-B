@@ -269,4 +269,13 @@ public class UserService implements IUserService {
                     return savedProfile;
                 });
     }
+
+
+
+
+    @Override
+    public Optional<User> findByUserId(String Id) {
+        return userRepository.findById(Id);
+    }
+
 }

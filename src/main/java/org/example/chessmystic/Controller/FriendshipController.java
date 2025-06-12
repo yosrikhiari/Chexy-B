@@ -20,7 +20,6 @@ public class FriendshipController {
         this.friendshipService = friendshipService;
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PostMapping("/request")
     public ResponseEntity<?> sendFriendRequest(@RequestParam String requesterId, @RequestParam String recipientId) {
         try {
@@ -34,7 +33,6 @@ public class FriendshipController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PutMapping("/accept/{friendshipId}")
     public ResponseEntity<?> acceptFriendRequest(@PathVariable String friendshipId) {
         try {
@@ -48,7 +46,6 @@ public class FriendshipController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @DeleteMapping("/decline/{friendshipId}")
     public ResponseEntity<?> declineFriendRequest(@PathVariable String friendshipId) {
         try {
@@ -62,7 +59,6 @@ public class FriendshipController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PostMapping("/block")
     public ResponseEntity<?> blockUser(@RequestParam String userId, @RequestParam String userToBlockId) {
         try {
@@ -76,7 +72,6 @@ public class FriendshipController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PostMapping("/unblock")
     public ResponseEntity<?> unblockUser(@RequestParam String userId, @RequestParam String userToUnblockId) {
         try {
@@ -90,7 +85,6 @@ public class FriendshipController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @GetMapping("/friends/{userId}")
     public ResponseEntity<List<Friendship>> getFriends(@PathVariable String userId) {
         try {
@@ -102,7 +96,6 @@ public class FriendshipController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @GetMapping("/pending/{userId}")
     public ResponseEntity<List<Friendship>> getPendingRequests(@PathVariable String userId) {
         try {
@@ -114,7 +107,6 @@ public class FriendshipController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @GetMapping("/sent/{userId}")
     public ResponseEntity<List<Friendship>> getSentRequests(@PathVariable String userId) {
         try {
@@ -126,7 +118,6 @@ public class FriendshipController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @GetMapping("/blocked/{userId}")
     public ResponseEntity<List<Friendship>> getBlockedUsers(@PathVariable String userId) {
         try {
@@ -138,7 +129,6 @@ public class FriendshipController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @DeleteMapping("/remove/{userId}/{friendId}")
     public ResponseEntity<?> removeFriend(@PathVariable String userId, @PathVariable String friendId) {
         try {
@@ -152,7 +142,6 @@ public class FriendshipController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @GetMapping("/are-friends/{userId1}/{userId2}")
     public ResponseEntity<Boolean> areFriends(@PathVariable String userId1, @PathVariable String userId2) {
         try {

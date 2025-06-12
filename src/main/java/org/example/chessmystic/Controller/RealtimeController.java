@@ -17,7 +17,7 @@ public class RealtimeController {
         this.realtimeService = realtimeService;
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
+
     @PostMapping("/broadcast/{gameId}")
     public ResponseEntity<?> broadcastGameState(@PathVariable String gameId) {
         try {
@@ -31,7 +31,6 @@ public class RealtimeController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PostMapping("/send/{playerId}")
     public ResponseEntity<?> sendToPlayer(@PathVariable String playerId, @RequestBody Object message) {
         try {

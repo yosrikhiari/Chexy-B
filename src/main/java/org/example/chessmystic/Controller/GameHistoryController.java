@@ -17,7 +17,6 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/game-history")
-@CrossOrigin(origins = "http://localhost:4200")
 public class GameHistoryController {
 
     private final IGameHistoryService gameHistoryService;

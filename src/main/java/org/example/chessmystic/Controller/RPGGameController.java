@@ -17,7 +17,6 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/rpg-game")
-@CrossOrigin(origins = "http://localhost:4200")
 public class RPGGameController {
 
     private final IRPGGameService rpgGameService;

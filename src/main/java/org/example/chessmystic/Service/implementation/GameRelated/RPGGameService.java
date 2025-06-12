@@ -1,11 +1,13 @@
 package org.example.chessmystic.Service.implementation.GameRelated;
 
+import org.example.chessmystic.Models.AISystem.AIStrategy;
 import org.example.chessmystic.Models.AISystem.EnemyArmyConfig;
 import org.example.chessmystic.Models.GameStateandFlow.*;
 import org.example.chessmystic.Models.Interactions.ActionType;
 import org.example.chessmystic.Models.Mechanics.BoardConfiguration;
 import org.example.chessmystic.Models.Mechanics.RPGGameState;
 import org.example.chessmystic.Models.Mechanics.RPGRound;
+import org.example.chessmystic.Models.Mechanics.RoundProgression;
 import org.example.chessmystic.Models.Tracking.*;
 import org.example.chessmystic.Models.UserManagement.User;
 import org.example.chessmystic.Models.rpg.*;
@@ -40,12 +42,14 @@ public class RPGGameService implements IRPGGameService {
     private final PlayerPurchaseHistoryRepository playerPurchaseHistoryRepository;
     private final GameHistoryRepository gameHistoryRepository;
     private final GameResultRepository gameResultRepository;
+    private final RoundProgressionRepository roundProgressionRepository;
 
     @Autowired
     public RPGGameService(RPGGameStateRepository rpgGameStateRepository,
                           UserService userService,
                           GameSessionService gameSessionService,
-                          GameSessionRepository gameSessionRepository, GameSessionRepository gamesessionrepository,
+                          GameSessionRepository gameSessionRepository,
+                          GameSessionRepository gamesessionrepository,
                           ShopItemRepository shopItemRepository,
                           IPlayerActionService playerActionService,
                           RPGRoundRepository rpgRoundRepository,
@@ -55,7 +59,8 @@ public class RPGGameService implements IRPGGameService {
                           GameHistoryRepository gameHistoryRepository,
                           GameResultRepository gameResultRepository,
                           RPGPieceRepository rpgPieceRepository,
-                          RPGModifierRepository rpgModifierRepository) {
+                          RPGModifierRepository rpgModifierRepository,
+                          RoundProgressionRepository roundProgressionRepository) {
         this.rpgGameStateRepository = rpgGameStateRepository;
         this.userService = userService;
         this.gameSessionService = gameSessionService;
@@ -69,6 +74,7 @@ public class RPGGameService implements IRPGGameService {
         this.playerPurchaseHistoryRepository = playerPurchaseHistoryRepository;
         this.gameHistoryRepository = gameHistoryRepository;
         this.gameResultRepository = gameResultRepository;
+        this.roundProgressionRepository = roundProgressionRepository;
     }
 
     @Override
@@ -85,8 +91,12 @@ public class RPGGameService implements IRPGGameService {
             validateMultiplayerSession(gameSession);
         }
 
-        RPGRound firstRound = getRoundConfiguration(1);
-        BoardConfiguration boardConfig = getBoardConfiguration(1, firstRound.getBoardSize());
+        RoundProgression progression = roundProgressionRepository.findById("defaultProgressionId")
+                .orElseThrow(() -> new ConfigurationNotFoundException("Round progression configuration not found"));
+
+        int initialBoardSize = progression.getBaseBoardSize();
+        RPGRound firstRound = getRoundConfiguration(1, initialBoardSize);
+        BoardConfiguration boardConfig = getBoardConfiguration(1, initialBoardSize);
         EnemyArmyConfig enemyConfig = getEnemyConfiguration(1, 1);
 
         List<String> playerIds = new ArrayList<>();
@@ -126,8 +136,7 @@ public class RPGGameService implements IRPGGameService {
 
     private void validateGameMode(GameMode gameMode) {
         if (gameMode != GameMode.SINGLE_PLAYER_RPG &&
-                gameMode != GameMode.MULTIPLAYER_RPG &&
-                gameMode != GameMode.ENHANCED_RPG) {
+                gameMode != GameMode.MULTIPLAYER_RPG ) {
             throw new IllegalArgumentException("Game session is not in RPG mode");
         }
     }
@@ -138,22 +147,50 @@ public class RPGGameService implements IRPGGameService {
         }
     }
 
-    private RPGRound getRoundConfiguration(int roundNumber) {
+    private RPGRound getRoundConfiguration(int roundNumber, int boardSize) {
         return rpgRoundRepository.findByRoundNumber(String.valueOf(roundNumber))
-                .orElseThrow(() -> new ConfigurationNotFoundException(
-                        "Initial RPG round configuration not found for round: " + roundNumber));
+                .orElseGet(() -> generateDefaultRoundConfig(roundNumber, boardSize));
+    }
+
+    private RPGRound generateDefaultRoundConfig(int roundNumber, int boardSize) {
+        return RPGRound.builder()
+                .roundNumber(String.valueOf(roundNumber))
+                .boardSize(boardSize)
+                .objective(GameObjective.CHECKMATE)
+                .turnLimit(50)
+                .isBossRound(false)
+                .coinsReward(100)
+                .build();
     }
 
     private BoardConfiguration getBoardConfiguration(int round, int boardSize) {
         return boardConfigurationRepository.findByRoundAndBoardSize(round, boardSize)
-                .orElseThrow(() -> new ConfigurationNotFoundException(
-                        "Board configuration not found for round: " + round));
+                .orElseGet(() -> generateDefaultBoardConfig(round, boardSize));
+    }
+
+    private BoardConfiguration generateDefaultBoardConfig(int round, int boardSize) {
+        return BoardConfiguration.builder()
+                .round(round)
+                .boardSize(boardSize)
+                .effects(new ArrayList<>())
+                .build();
     }
 
     private EnemyArmyConfig getEnemyConfiguration(int round, int difficulty) {
         return enemyArmyConfigRepository.findByRoundAndDifficulty(round, difficulty)
-                .orElseThrow(() -> new ConfigurationNotFoundException(
-                        "Enemy army configuration not found for round: " + round));
+                .orElseGet(() -> generateDefaultEnemyConfig(round, difficulty));
+    }
+
+    private EnemyArmyConfig generateDefaultEnemyConfig(int round, int difficulty) {
+        List<EnhancedRPGPiece> pieces = new ArrayList<>();
+        // Placeholder: Add basic enemy pieces based on round and difficulty
+        return EnemyArmyConfig.builder()
+                .round(round)
+                .difficulty(difficulty)
+                .pieces(pieces)
+                .strategy(AIStrategy.BALANCED)
+                .queenExposed(false)
+                .build();
     }
 
     private void initializePlayerLists(String userId, GameSession gameSession,
@@ -182,7 +219,7 @@ public class RPGGameService implements IRPGGameService {
                 .gameId(UUID.randomUUID().toString())
                 .gameSessionId(gameSessionId)
                 .playerArmy(new ArrayList<>())
-                .EnemyArmyConfig(firstEnemyArmy)  // Set the entire EnemyArmyConfig
+                .EnemyArmyConfig(firstEnemyArmy)
                 .activeModifiers(new ArrayList<>())
                 .activeBoardModifiers(new ArrayList<>())
                 .activeCapacityModifiers(new ArrayList<>())
@@ -203,6 +240,7 @@ public class RPGGameService implements IRPGGameService {
                 .actionHistoryIds(new ArrayList<>())
                 .currentObjective(firstRound.getObjective().toString())
                 .turnsRemaining(firstRound.getTurnLimit())
+                .completedRounds(new ArrayList<>()) // Initialize completedRounds here
                 .build();
     }
 
@@ -241,9 +279,29 @@ public class RPGGameService implements IRPGGameService {
         validateGameNotOver(gameState);
 
         int nextRound = gameState.getCurrentRound() + 1;
-        RPGRound roundConfig = getRoundConfiguration(nextRound);
-        BoardConfiguration boardConfig = getBoardConfiguration(nextRound, roundConfig.getBoardSize());
-        EnemyArmyConfig enemyConfig = getEnemyConfiguration(nextRound, 1);
+
+        RoundProgression progression = roundProgressionRepository.findById("defaultProgressionId")
+                .orElseThrow(() -> new ConfigurationNotFoundException("Round progression configuration not found"));
+
+        int bossRoundsCompleted = (int) (gameState.getCompletedRounds() != null ?
+                gameState.getCompletedRounds().stream()
+                        .filter(r -> rpgRoundRepository.findByRoundNumber(String.valueOf(r))
+                                .map(RPGRound::isBossRound)
+                                .orElse(false))
+                        .count() : 0);
+
+        int boardSize = progression.getBaseBoardSize() + (bossRoundsCompleted * progression.getSizeIncreasePerBoss());
+        RPGRound roundConfig = getRoundConfiguration(nextRound, boardSize);
+
+        double difficultyMultiplier = progression.getDifficultyMultiplier();
+        int difficulty = calculateDifficulty(nextRound, difficultyMultiplier);
+
+        BoardConfiguration boardConfig = getBoardConfiguration(nextRound, boardSize);
+        EnemyArmyConfig enemyConfig = getEnemyConfiguration(nextRound, difficulty);
+
+        if (roundConfig.isBossRound()) {
+            adjustEnemyConfigForBossRound(enemyConfig);
+        }
 
         updateGameStateForNextRound(gameState, nextRound, roundConfig, boardConfig, enemyConfig);
 
@@ -254,6 +312,17 @@ public class RPGGameService implements IRPGGameService {
         recordRoundProgressAction(gameState);
 
         return rpgGameStateRepository.save(gameState);
+    }
+
+    private int calculateDifficulty(int round, double multiplier) {
+        return (int) Math.ceil(round * multiplier);
+    }
+
+    private void adjustEnemyConfigForBossRound(EnemyArmyConfig enemyConfig) {
+        enemyConfig.getPieces().forEach(piece -> {
+            piece.setAttack((int) (piece.getAttack() * 1.5));
+            piece.setDefense((int) (piece.getDefense() * 1.5));
+        });
     }
 
     private RPGGameState getGameState(String gameId) {
@@ -530,11 +599,6 @@ public class RPGGameService implements IRPGGameService {
         return rpgGameStateRepository.findActiveGamesByUserId(userId);
     }
 
-/*    @Override
-    public List<RPGGameState> findGamesByUser(String userId) {
-        return rpgGameStateRepository.f(userId);
-    }
-*/
     @Override
     @Transactional
     public RPGGameState purchaseShopItem(String gameId, String shopItemId, String playerId) {
@@ -570,8 +634,7 @@ public class RPGGameService implements IRPGGameService {
 
         if ("piece".equals(shopItem.getType())) {
             addPurchasedPiece(gameState, (RPGPiece) shopItem.getItem());
-        }
-        else if ("modifier".equals(shopItem.getType())) {
+        } else if ("modifier".equals(shopItem.getType())) {
             addPurchasedModifier(gameState, (RPGModifier) shopItem.getItem());
         }
     }

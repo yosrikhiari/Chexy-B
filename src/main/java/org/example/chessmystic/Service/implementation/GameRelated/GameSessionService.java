@@ -87,7 +87,9 @@ public class GameSessionService implements IGameSessionService {
                 .allowSpectators(true)
                 .spectatorIds(new ArrayList<>())
                 .moveHistoryIds(new ArrayList<>())
+                .board(initializeStandardChessBoard())  // Updated line
                 .build();
+
 
         return gameSessionRepository.save(session);
     }
@@ -234,8 +236,7 @@ public class GameSessionService implements IGameSessionService {
     private void updatePlayerStats(GameSession session, String winnerId, boolean isDraw, GameResult result) {
         List<String> playerIds = session.getPlayerIds();
         boolean isRPGMode = session.getGameMode() == GameMode.SINGLE_PLAYER_RPG ||
-                session.getGameMode() == GameMode.MULTIPLAYER_RPG ||
-                session.getGameMode() == GameMode.ENHANCED_RPG;
+                session.getGameMode() == GameMode.MULTIPLAYER_RPG ;
 
         for (String playerId : playerIds) {
             PlayerProfile profile = userService.getOrCreatePlayerProfile(playerId);
@@ -416,15 +417,13 @@ public class GameSessionService implements IGameSessionService {
                         .build())
                 .build();
 
-        Piece[][] board = new Piece[8][8];
-        initializeStandardChessBoard(board);
-
         session.setGameState(gameState);
         session.setTimers(timers);
-        session.setBoard(board);
+        session.setBoard(initializeStandardChessBoard());
     }
 
-    private void initializeStandardChessBoard(Piece[][] board) {
+    private Piece[][] initializeStandardChessBoard() {
+        Piece[][] board = new Piece[8][8];
         for (int i = 0; i < 8; i++) {
             board[1][i] = Piece.builder().type(PieceType.PAWN).color(PieceColor.WHITE).build();
             board[6][i] = Piece.builder().type(PieceType.PAWN).color(PieceColor.BLACK).build();
@@ -439,10 +438,25 @@ public class GameSessionService implements IGameSessionService {
         board[7][2] = board[7][5] = Piece.builder().type(PieceType.BISHOP).color(PieceColor.BLACK).build();
         board[7][3] = Piece.builder().type(PieceType.QUEEN).color(PieceColor.BLACK).build();
         board[7][4] = Piece.builder().type(PieceType.KING).color(PieceColor.BLACK).build();
+        return board;
     }
 
     private String generateInviteCode() {
         return UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+    }
+
+
+
+    @Override
+    public GameSession getGameSessionByGameStateId(String gameStateId) {
+        for (GameSession gameSession : gameSessionRepository.findAll()) {
+            if (gameSession.getGameState() != null &&
+                    gameSession.getGameState().getGamestateId() != null &&
+                    gameSession.getGameState().getGamestateId().equals(gameStateId)) {
+                return gameSession;
+            }
+        }
+        return null;
     }
 
 

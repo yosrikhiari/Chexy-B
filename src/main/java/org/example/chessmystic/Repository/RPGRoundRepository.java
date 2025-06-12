@@ -12,7 +12,6 @@ import java.util.Optional;
 @Repository
 public interface RPGRoundRepository extends MongoRepository<RPGRound, String> {
     Optional<RPGRound> findByRoundNumber(String roundNumber);
-    List<RPGRound> findByIsBossRoundTrue();
     List<RPGRound> findByObjective(GameObjective objective);
     List<RPGRound> findByBoardSizeGreaterThan(int minSize);
 

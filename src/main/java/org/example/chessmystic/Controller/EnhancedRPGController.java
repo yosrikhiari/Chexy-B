@@ -68,7 +68,6 @@ public class EnhancedRPGController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PostMapping("/combat")
     public ResponseEntity<?> resolveCombat(@RequestBody CombatRequest request) {
         try {
@@ -87,7 +86,6 @@ public class EnhancedRPGController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PostMapping("/board-effect/{gameId}/{playerId}")
     public ResponseEntity<?> applyBoardEffect(
             @PathVariable String gameId,
@@ -104,7 +102,6 @@ public class EnhancedRPGController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PostMapping("/boss-encounter/{gameId}/{playerId}")
     public ResponseEntity<?> handleBossEncounter(
             @PathVariable String gameId,
@@ -121,7 +118,6 @@ public class EnhancedRPGController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @GetMapping("/actions/type/{gameSessionId}/{actionType}")
     public ResponseEntity<?> getActionsByType(@PathVariable String gameSessionId, @PathVariable ActionType actionType) {
         try {

@@ -6,6 +6,7 @@ import org.example.chessmystic.Models.APIContacts.LoginDTO.LoginResponseDTO;
 import org.example.chessmystic.Models.APIContacts.RegistreDTO.RegisterRequestDTO;
 import org.example.chessmystic.Models.APIContacts.RegistreDTO.RegisterResponseDTO;
 import org.example.chessmystic.Exceptions.UserAlreadyExistsException;
+import org.example.chessmystic.Models.APIContacts.UserDTO.ChangePasswordRequestDTO;
 import org.example.chessmystic.Service.interfaces.IAuthService;
 import org.example.chessmystic.Service.interfaces.IUserService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,7 +26,6 @@ public class AuthController {
     private IAuthService authService;
 
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequestDTO requestDTO) {
         try {
@@ -38,7 +38,6 @@ public class AuthController {
         }
     }
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequestDTO requestDTO) {
         try{
@@ -50,11 +49,10 @@ public class AuthController {
     }
 
 
-    @CrossOrigin(origins = "http://localhost:4200")
     @PostMapping("/change-password")
-    public ResponseEntity<?> changePassword(@RequestBody Map<String, String> request) {
-        String userId = request.get("userId");
-        String newPassword = request.get("newPassword");
+    public ResponseEntity<?> changePassword(@RequestBody ChangePasswordRequestDTO request) {
+        String userId = request.getUserId();
+        String newPassword = request.getNewPassword();
 
         try {
             boolean success = authService.changePassword(userId, newPassword);

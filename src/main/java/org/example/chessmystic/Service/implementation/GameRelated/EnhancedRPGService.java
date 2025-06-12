@@ -235,8 +235,8 @@ public class EnhancedRPGService implements IEnhancedRPGService {
     }
 
     private void rotateTurnIfMultiplayer(EnhancedGameState gameState) {
-        if (gameState.getGameMode() == GameMode.MULTIPLAYER_RPG ||
-                gameState.getGameMode() == GameMode.ENHANCED_RPG) {
+        if (gameState.getGameMode() == GameMode.MULTIPLAYER_RPG
+                ) {
 
             GameSession gameSession = gamesessionrepository.findById(gameState.getGameSessionId())
                     .orElse(null);
