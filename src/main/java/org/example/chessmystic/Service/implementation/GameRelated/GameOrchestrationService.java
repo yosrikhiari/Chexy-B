@@ -55,7 +55,7 @@ public class GameOrchestrationService {
 
         chessGameService.handleSpecialMoves(gameState, movingPiece, fromRow, fromCol, toRow, toCol, board);
 
-        String playerId = movingPiece.getColor() == PieceColor.WHITE
+        String playerId = movingPiece.getColor() == PieceColor.white
                 ? session.getWhitePlayer().getUserId()
                 : session.getBlackPlayer().getFirst().getUserId();
 

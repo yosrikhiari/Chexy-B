@@ -120,7 +120,7 @@ public class ChessGameService implements IChessGameService {
                 if (piece != null) {
                     if (piece.getType() != PieceType.KING) {
                         hasNonKingPiece = true;
-                        if (piece.getColor() == PieceColor.WHITE) {
+                        if (piece.getColor() == PieceColor.white) {
                             whiteMaterial += getPieceValue(piece);
                         } else {
                             blackMaterial += getPieceValue(piece);
@@ -166,7 +166,7 @@ public class ChessGameService implements IChessGameService {
 
     void updateGameState(GameState gameState, Piece[][] board, GameMode gameMode) {
         gameState.setMoveCount(gameState.getMoveCount() + 1);
-        PieceColor nextTurn = gameState.getCurrentTurn() == PieceColor.WHITE ? PieceColor.BLACK : PieceColor.WHITE;
+        PieceColor nextTurn = gameState.getCurrentTurn() == PieceColor.white ? PieceColor.black : PieceColor.white;
         gameState.setCurrentTurn(nextTurn);
         gameState.setCheck(isKingInCheck(board, nextTurn));
         gameState.setCheckmate(gameState.isCheck() && !hasLegalMoves(board, nextTurn));
@@ -202,6 +202,10 @@ public class ChessGameService implements IChessGameService {
     }
 
     private boolean isValidPieceMove(Piece piece, int fromRow, int fromCol, int toRow, int toCol, Piece[][] board) {
+        Piece targetPiece = board[toRow][toCol];
+        if (targetPiece != null && targetPiece.getColor() == piece.getColor()) {
+            return false;
+        }
         switch (piece.getType()) {
             case KING:
                 return Math.abs(toRow - fromRow) <= 1 && Math.abs(toCol - fromCol) <= 1;
@@ -251,8 +255,8 @@ public class ChessGameService implements IChessGameService {
     }
 
     private boolean isValidPawnMove(Piece piece, int fromRow, int fromCol, int toRow, int toCol, Piece[][] board) {
-        int direction = piece.getColor() == PieceColor.WHITE ? 1 : -1;
-        int startRow = piece.getColor() == PieceColor.WHITE ? 1 : 6;
+        int direction = piece.getColor() == PieceColor.white ? 1 : -1;
+        int startRow = piece.getColor() == PieceColor.white ? 1 : 6;
 
         if (fromCol == toCol && board[toRow][toCol] == null) {
             if (toRow == fromRow + direction) return true;
@@ -268,7 +272,7 @@ public class ChessGameService implements IChessGameService {
     private boolean validateSpecialMoves(GameState gameState, Piece piece, int fromRow, int fromCol, int toRow, int toCol, Piece[][] board) {
         if (piece.getType() == PieceType.KING && Math.abs(toCol - fromCol) == 2) {
             boolean isKingSide = toCol > fromCol;
-            boolean canCastle = piece.getColor() == PieceColor.WHITE ?
+            boolean canCastle = piece.getColor() == PieceColor.white ?
                     (isKingSide ? gameState.isCanWhiteCastleKingSide() : gameState.isCanWhiteCastleQueenSide()) :
                     (isKingSide ? gameState.isCanBlackCastleKingSide() : gameState.isCanBlackCastleQueenSide());
             if (!canCastle || piece.isHasMoved()) return false;
@@ -292,7 +296,7 @@ public class ChessGameService implements IChessGameService {
             Piece rook = board[fromRow][rookCol];
             board[fromRow][rookToCol] = rook;
             board[fromRow][rookCol] = null;
-            if (piece.getColor() == PieceColor.WHITE) {
+            if (piece.getColor() == PieceColor.white) {
                 gameState.setCanWhiteCastleKingSide(false);
                 gameState.setCanWhiteCastleQueenSide(false);
             } else {
@@ -301,7 +305,7 @@ public class ChessGameService implements IChessGameService {
             }
         }
         if (piece.getType() == PieceType.PAWN && Math.abs(toCol - fromCol) == 1 && board[toRow][toCol] == null) {
-            int direction = piece.getColor() == PieceColor.WHITE ? 1 : -1;
+            int direction = piece.getColor() == PieceColor.white ? 1 : -1;
             board[toRow - direction][toCol] = null;
         }
         if (piece.getType() == PieceType.PAWN && (toRow == 0 || toRow == 7)) {
@@ -333,7 +337,7 @@ public class ChessGameService implements IChessGameService {
         }
         if (kingPos == null) return false;
 
-        PieceColor opponentColor = color == PieceColor.WHITE ? PieceColor.BLACK : PieceColor.WHITE;
+        PieceColor opponentColor = color == PieceColor.white ? PieceColor.black : PieceColor.white;
         for (int row = 0; row < 8; row++) {
             for (int col = 0; col < 8; col++) {
                 Piece piece = board[row][col];

@@ -69,12 +69,15 @@ public class GameSessionService implements IGameSessionService {
                 .lastSeen(LocalDateTime.now())
                 .build();
 
+
+
+
         GameSession session = GameSession.builder()
                 .gameId(UUID.randomUUID().toString())
                 .whitePlayer(playerInfo)
                 .blackPlayer(new ArrayList<>())
                 .gameMode(gameMode)
-                .isRankedMatch(gameMode == GameMode.TOURNAMENT)
+                .isRankedMatch(gameMode == GameMode.TOURNAMENT || gameMode == GameMode.CLASSIC_MULTIPLAYER)
                 .isPrivate(isPrivate)
                 .inviteCode(isPrivate ? (inviteCode != null ? inviteCode : generateInviteCode()) : null)
                 .status(GameStatus.WAITING_FOR_PLAYERS)
@@ -87,9 +90,30 @@ public class GameSessionService implements IGameSessionService {
                 .allowSpectators(true)
                 .spectatorIds(new ArrayList<>())
                 .moveHistoryIds(new ArrayList<>())
-                .board(initializeStandardChessBoard())  // Updated line
+                .board(initializeStandardChessBoard())
+                .BotId(gameMode == GameMode.CLASSIC_SINGLE_PLAYER ? inviteCode : null)
                 .build();
-
+        if (gameMode == GameMode.CLASSIC_SINGLE_PLAYER) {
+            PlayerSessionInfo botInfo = PlayerSessionInfo.builder()
+                    .id("BOT_" + inviteCode) // or some other bot ID
+                    .userId("BOT")
+                    .keycloakId(null)
+                    .username("ChessBot")
+                    .displayName("Chess Bot")
+                    .isConnected(true)
+                    .lastSeen(LocalDateTime.now())
+                    .build();
+            session.setBlackPlayer(List.of(botInfo));
+        }
+        if (gameMode == GameMode.CLASSIC_SINGLE_PLAYER) {
+            initializeGameState(session);
+            session.setStatus(GameStatus.ACTIVE);
+            session.setStartedAt(LocalDateTime.now());
+            GameHistory gameHistory = gameHistoryService.createGameHistory(session);
+            session.setGameHistoryId(gameHistory.getId());
+            // Save the session to ensure the ACTIVE status is persisted
+            session = gameSessionRepository.save(session);
+        }
 
         return gameSessionRepository.save(session);
     }
@@ -156,8 +180,21 @@ public class GameSessionService implements IGameSessionService {
         GameSession session = gameSessionRepository.findById(gameId)
                 .orElseThrow(() -> new RuntimeException("Game session not found with id: " + gameId));
 
-        if (session.getWhitePlayer() == null || session.getBlackPlayer().isEmpty()) {
-            throw new RuntimeException("Cannot start game without at least two players");
+        // Allow single-player mode to start with only white player
+        if (session.getGameMode() == GameMode.CLASSIC_SINGLE_PLAYER) {
+            if (session.getWhitePlayer() == null) {
+                throw new RuntimeException("White player not assigned for single-player game");
+            }
+        } else {
+            if (session.getWhitePlayer() == null || session.getBlackPlayer().isEmpty()) {
+                throw new RuntimeException("Cannot start game without at least two players");
+            }
+        }
+
+        // Check if the game is already active
+        if (session.getStatus() == GameStatus.ACTIVE) {
+            logger.warn("Game {} is already active, no action needed.", gameId);
+            return session;
         }
 
         if (session.getStatus() != GameStatus.WAITING_FOR_PLAYERS) {
@@ -202,7 +239,7 @@ public class GameSessionService implements IGameSessionService {
             var winner = userService.findById(winnerId).orElse(null);
             if (winner != null) {
                 resultBuilder.winnerName(winner.getFirstName() + " " + winner.getLastName());
-                resultBuilder.winner(session.getWhitePlayer().getUserId().equals(winnerId) ? PieceColor.WHITE : PieceColor.BLACK);
+                resultBuilder.winner(session.getWhitePlayer().getUserId().equals(winnerId) ? PieceColor.white : PieceColor.black);
             }
         } else {
             if (isDraw) {
@@ -210,7 +247,7 @@ public class GameSessionService implements IGameSessionService {
                     List<String> playerIds = session.getPlayerIds();
                     winnerId = playerIds.get(new Random().nextInt(playerIds.size()));
                     resultBuilder.winnerid(winnerId)
-                            .winner(session.getWhitePlayer().getUserId().equals(winnerId) ? PieceColor.WHITE : PieceColor.BLACK)
+                            .winner(session.getWhitePlayer().getUserId().equals(winnerId) ? PieceColor.white : PieceColor.black)
                             .winnerName(userService.findById(winnerId)
                                     .map(u -> u.getFirstName() + " " + u.getLastName())
                                     .orElse("Unknown"))
@@ -395,7 +432,7 @@ public class GameSessionService implements IGameSessionService {
         GameState gameState = GameState.builder()
                 .gamestateId(UUID.randomUUID().toString())
                 .gameSessionId(session.getGameId())
-                .currentTurn(PieceColor.WHITE)
+                .currentTurn(PieceColor.white)
                 .moveCount(0)
                 .isCheck(false)
                 .isCheckmate(false)
@@ -424,20 +461,44 @@ public class GameSessionService implements IGameSessionService {
 
     private Piece[][] initializeStandardChessBoard() {
         Piece[][] board = new Piece[8][8];
-        for (int i = 0; i < 8; i++) {
-            board[1][i] = Piece.builder().type(PieceType.PAWN).color(PieceColor.WHITE).build();
-            board[6][i] = Piece.builder().type(PieceType.PAWN).color(PieceColor.BLACK).build();
+
+        // Black pieces (row 0)
+        board[0][0] = new Piece(PieceType.ROOK, PieceColor.black);
+        board[0][1] = new Piece(PieceType.KNIGHT, PieceColor.black);
+        board[0][2] = new Piece(PieceType.BISHOP, PieceColor.black);
+        board[0][3] = new Piece(PieceType.QUEEN, PieceColor.black);
+        board[0][4] = new Piece(PieceType.KING, PieceColor.black);
+        board[0][5] = new Piece(PieceType.BISHOP, PieceColor.black);
+        board[0][6] = new Piece(PieceType.KNIGHT, PieceColor.black);
+        board[0][7] = new Piece(PieceType.ROOK, PieceColor.black);
+
+        // Black pawns (row 1)
+        for (int col = 0; col < 8; col++) {
+            board[1][col] = new Piece(PieceType.PAWN, PieceColor.black);
         }
-        board[0][0] = board[0][7] = Piece.builder().type(PieceType.ROOK).color(PieceColor.WHITE).build();
-        board[0][1] = board[0][6] = Piece.builder().type(PieceType.KNIGHT).color(PieceColor.WHITE).build();
-        board[0][2] = board[0][5] = Piece.builder().type(PieceType.BISHOP).color(PieceColor.WHITE).build();
-        board[0][3] = Piece.builder().type(PieceType.QUEEN).color(PieceColor.WHITE).build();
-        board[0][4] = Piece.builder().type(PieceType.KING).color(PieceColor.WHITE).build();
-        board[7][0] = board[7][7] = Piece.builder().type(PieceType.ROOK).color(PieceColor.BLACK).build();
-        board[7][1] = board[7][6] = Piece.builder().type(PieceType.KNIGHT).color(PieceColor.BLACK).build();
-        board[7][2] = board[7][5] = Piece.builder().type(PieceType.BISHOP).color(PieceColor.BLACK).build();
-        board[7][3] = Piece.builder().type(PieceType.QUEEN).color(PieceColor.BLACK).build();
-        board[7][4] = Piece.builder().type(PieceType.KING).color(PieceColor.BLACK).build();
+
+        // Empty rows (rows 2–5)
+        for (int row = 2; row < 6; row++) {
+            for (int col = 0; col < 8; col++) {
+                board[row][col] = null;
+            }
+        }
+
+        // White pawns (row 6)
+        for (int col = 0; col < 8; col++) {
+            board[6][col] = new Piece(PieceType.PAWN, PieceColor.white);
+        }
+
+        // White pieces (row 7)
+        board[7][0] = new Piece(PieceType.ROOK, PieceColor.white);
+        board[7][1] = new Piece(PieceType.KNIGHT, PieceColor.white);
+        board[7][2] = new Piece(PieceType.BISHOP, PieceColor.white);
+        board[7][3] = new Piece(PieceType.QUEEN, PieceColor.white);
+        board[7][4] = new Piece(PieceType.KING, PieceColor.white);
+        board[7][5] = new Piece(PieceType.BISHOP, PieceColor.white);
+        board[7][6] = new Piece(PieceType.KNIGHT, PieceColor.white);
+        board[7][7] = new Piece(PieceType.ROOK, PieceColor.white);
+
         return board;
     }
 
