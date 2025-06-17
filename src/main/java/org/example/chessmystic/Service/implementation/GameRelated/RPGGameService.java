@@ -578,7 +578,7 @@ public class RPGGameService implements IRPGGameService {
                 .gameid(gameState.getGameSessionId())
                 .winnerid(victory ? Objects.requireNonNull(gameSession).getCurrentPlayerId() : null)
                 .pointsAwarded(gameState.getScore())
-                .gameEndReason(victory ? GameEndReason.CHECKMATE : GameEndReason.RESIGNATION)
+                .gameEndReason(victory ? GameEndReason.checkmate : GameEndReason.resignation)
                 .build();
         gameResultRepository.save(gameResult);
     }

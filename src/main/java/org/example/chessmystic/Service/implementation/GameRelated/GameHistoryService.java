@@ -28,6 +28,10 @@ public class GameHistoryService implements IGameHistoryService {
 
     @Transactional
     public GameHistory createGameHistory(GameSession session) {
+        Optional<GameHistory> existingHistory = gameHistoryRepository.findByGameSessionId(session.getGameId());
+        if (existingHistory.isPresent()) {
+            return existingHistory.get();
+        }
         GameHistory history = GameHistory.builder()
                 .id(UUID.randomUUID().toString())
                 .gameSessionId(session.getGameId())

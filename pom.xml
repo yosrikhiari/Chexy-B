@@ -158,7 +158,11 @@
             <version>1.6.2</version>
         </dependency>
 
-
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jdk8</artifactId>
+            <version>2.18.2</version>
+        </dependency>
 
         <dependency>
             <groupId>org.springdoc</groupId>

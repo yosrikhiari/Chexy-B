@@ -4,6 +4,7 @@ import org.example.chessmystic.Models.Tracking.GameResult;
 import org.example.chessmystic.Models.Tracking.GameHistory;
 import org.example.chessmystic.Models.Tracking.GameSession;
 import org.example.chessmystic.Service.interfaces.GameRelated.IGameHistoryService;
+import org.example.chessmystic.Service.interfaces.GameRelated.IGameSessionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,19 +21,21 @@ import java.util.Optional;
 public class GameHistoryController {
 
     private final IGameHistoryService gameHistoryService;
+    private final IGameSessionService gameSessionService;
+
+
 
     @Autowired
-    public GameHistoryController(IGameHistoryService gameHistoryService) {
+    public GameHistoryController(IGameHistoryService gameHistoryService, IGameSessionService gameSessionService) {
         this.gameHistoryService = gameHistoryService;
+        this.gameSessionService = gameSessionService;
     }
 
     @PostMapping
     public ResponseEntity<?> createGameHistory(@RequestParam String gameSessionId) {
         try {
-            // Note: Assumes a way to fetch GameSession, e.g., via a repository or service
-            // You may need to inject a GameSessionRepository or service to fetch it
-            GameSession session = new GameSession(); // Placeholder: Replace with actual retrieval
-            session.setGameId(gameSessionId); // Set properties as needed
+            GameSession session = gameSessionService.findById(gameSessionId)
+                    .orElseThrow(() -> new RuntimeException("Game session not found"));
             GameHistory history = gameHistoryService.createGameHistory(session);
             return ResponseEntity.status(HttpStatus.CREATED).body(history);
         } catch (RuntimeException e) {
@@ -49,7 +52,8 @@ public class GameHistoryController {
             GameHistory history = gameHistoryService.updateGameHistory(historyId, result, LocalDateTime.now());
             return ResponseEntity.ok(history);
         } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", "Invalid history ID or data", "message", e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Failed to complete game history", "message", "An unexpected error occurred"));
@@ -81,14 +85,10 @@ public class GameHistoryController {
     }
 
     @GetMapping("/session/{gameSessionId}")
-    public ResponseEntity<?> findByGameSessionId(@PathVariable String gameSessionId) {
-        try {
-            Optional<GameHistory> histories = gameHistoryService.findByGameSessionId(gameSessionId);
-            return ResponseEntity.ok(histories);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Failed to find game histories", "message", "An unexpected error occurred"));
-        }
+    public ResponseEntity<GameHistory> findByGameSessionId(@PathVariable String gameSessionId) {
+        Optional<GameHistory> history = gameHistoryService.findByGameSessionId(gameSessionId);
+        return history.map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @GetMapping("/ranked/{userId}")

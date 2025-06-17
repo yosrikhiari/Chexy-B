@@ -221,7 +221,13 @@ public class GameSessionService implements IGameSessionService {
         GameSession session = gameSessionRepository.findById(gameId)
                 .orElseThrow(() -> new RuntimeException("Game session not found with id: " + gameId));
 
-        if (winnerId != null && !session.getPlayerIds().contains(winnerId)) {
+        if (session.getStatus() != GameStatus.ACTIVE) {
+            throw new RuntimeException("Game is not active and cannot be ended");
+        }
+
+        // Allow "BOT" as winner in single-player mode
+        if (winnerId != null && !session.getPlayerIds().contains(winnerId) &&
+                !(session.getGameMode() == GameMode.CLASSIC_SINGLE_PLAYER && "BOT".equals(winnerId))) {
             throw new RuntimeException("Winner ID is not part of the game");
         }
 
@@ -229,45 +235,45 @@ public class GameSessionService implements IGameSessionService {
         session.setLastActivity(LocalDateTime.now());
         session.setActive(false);
 
+        GameResult result = buildGameResult(session, isDraw ? null : winnerId, isDraw, null);
+        updatePlayerStats(session, winnerId, isDraw, result);
+        gameHistoryService.updateGameHistory(session.getGameHistoryId(), result, LocalDateTime.now());
+
+        return gameSessionRepository.save(session);
+    }
+
+    private GameResult buildGameResult(GameSession session, String winnerId, boolean isDraw, TieResolutionOption tieOption) {
         GameResult.GameResultBuilder resultBuilder = GameResult.builder()
                 .gameresultId(UUID.randomUUID().toString())
-                .gameid(gameId);
+                .gameid(session.getGameId());
 
         if (winnerId != null) {
             resultBuilder.winnerid(winnerId)
-                    .gameEndReason(GameEndReason.CHECKMATE);
-            var winner = userService.findById(winnerId).orElse(null);
+                    .gameEndReason(GameEndReason.timeout); // Default to timeout for simplicity
+            var winner = "BOT".equals(winnerId) ? null : userService.findById(winnerId).orElse(null);
             if (winner != null) {
-                resultBuilder.winnerName(winner.getFirstName() + " " + winner.getLastName());
-                resultBuilder.winner(session.getWhitePlayer().getUserId().equals(winnerId) ? PieceColor.white : PieceColor.black);
+                resultBuilder.winnerName(winner.getFirstName() + " " + winner.getLastName())
+                        .winner(session.getWhitePlayer().getUserId().equals(winnerId) ? PieceColor.white : PieceColor.black);
+            } else if ("BOT".equals(winnerId)) {
+                resultBuilder.winnerName("Chess Bot")
+                        .winner(PieceColor.black);
+            }
+        } else if (isDraw) {
+            resultBuilder.gameEndReason(GameEndReason.draw);
+            if (tieOption != null && session.getGameMode() == GameMode.MULTIPLAYER_RPG) {
+                List<String> playerIds = session.getPlayerIds();
+                winnerId = playerIds.get(new Random().nextInt(playerIds.size()));
+                resultBuilder.winnerid(winnerId)
+                        .winner(session.getWhitePlayer().getUserId().equals(winnerId) ? PieceColor.white : PieceColor.black)
+                        .winnerName(userService.findById(winnerId).map(u -> u.getFirstName() + " " + u.getLastName()).orElse("Unknown"))
+                        .gameEndReason(GameEndReason.tie_resolved)
+                        .tieResolutionOption(tieOption);
             }
         } else {
-            if (isDraw) {
-                if (tieOption != null && session.getGameMode() == GameMode.MULTIPLAYER_RPG) {
-                    List<String> playerIds = session.getPlayerIds();
-                    winnerId = playerIds.get(new Random().nextInt(playerIds.size()));
-                    resultBuilder.winnerid(winnerId)
-                            .winner(session.getWhitePlayer().getUserId().equals(winnerId) ? PieceColor.white : PieceColor.black)
-                            .winnerName(userService.findById(winnerId)
-                                    .map(u -> u.getFirstName() + " " + u.getLastName())
-                                    .orElse("Unknown"))
-                            .gameEndReason(GameEndReason.TIE_RESOLVED)
-                            .tieResolutionOption(tieOption);
-                } else {
-                    resultBuilder.gameEndReason(GameEndReason.DRAW);
-                }
-            } else {
-                resultBuilder.gameEndReason(GameEndReason.DRAW);
-            }
+            resultBuilder.gameEndReason(GameEndReason.draw);
         }
 
-        GameResult result = resultBuilder.build();
-        updatePlayerStats(session, winnerId, isDraw, result);
-        GameSession updatedSession = gameSessionRepository.save(session);
-        gameHistoryService.updateGameHistory(session.getGameHistoryId(), result, LocalDateTime.now());
-
-        logger.info("Game ended: {}, winner: {}", gameId, winnerId != null ? winnerId : "none");
-        return updatedSession;
+        return resultBuilder.build();
     }
 
     private void updatePlayerStats(GameSession session, String winnerId, boolean isDraw, GameResult result) {
@@ -276,6 +282,9 @@ public class GameSessionService implements IGameSessionService {
                 session.getGameMode() == GameMode.MULTIPLAYER_RPG ;
 
         for (String playerId : playerIds) {
+            if ("BOT".equals(playerId)) {
+                continue; // Skip bot
+            }
             PlayerProfile profile = userService.getOrCreatePlayerProfile(playerId);
             PlayerGameStats stats = profile.getGameStats();
             if (stats == null) {

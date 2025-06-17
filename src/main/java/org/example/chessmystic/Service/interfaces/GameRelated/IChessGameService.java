@@ -7,6 +7,8 @@ public interface IChessGameService {
     boolean validateMove(String gameId, BoardPosition move);
     boolean isCheck(String gameId, PieceColor color);
     boolean isCheckmate(String gameId, PieceColor color);
+
+    boolean isDraw(String gameId, PieceColor color);
 }
 
 

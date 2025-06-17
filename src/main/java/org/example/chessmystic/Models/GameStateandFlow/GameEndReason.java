@@ -1,5 +1,5 @@
 package org.example.chessmystic.Models.GameStateandFlow;
 
 public enum GameEndReason {
-    CHECKMATE, TIMEOUT, RESIGNATION, TIE_RESOLVED, DRAW
+    checkmate, timeout, resignation, tie_resolved, draw
 }

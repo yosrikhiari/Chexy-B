@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Map;
+
 @RestController
 public class GameController {
 
@@ -21,12 +23,22 @@ public class GameController {
     }
 
     @PostMapping("/games/{gameId}/moves")
-    public ResponseEntity<GameState> makeMove(@PathVariable String gameId, @RequestBody BoardPosition move) {
+    public ResponseEntity<?> makeMove(@PathVariable String gameId, @RequestBody BoardPosition move) {
         try {
             GameState gameState = gameOrchestrationService.executeMove(gameId, move);
             return ResponseEntity.ok(gameState);
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Invalid move",
+                    "message", e.getMessage(),
+                    "status", 400
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "error", "Internal server error",
+                    "message", e.getMessage(),
+                    "status", 500
+            ));
         }
     }
 }

@@ -52,6 +52,7 @@ public class ChessGameService implements IChessGameService {
         int toRow = move.getTorow();
         int toCol = move.getTocol();
 
+        // Basic position validation
         if (!isValidPosition(fromRow, fromCol) || !isValidPosition(toRow, toCol)) {
             return false;
         }
@@ -61,19 +62,23 @@ public class ChessGameService implements IChessGameService {
             return false;
         }
 
+        // Turn validation
         if (movingPiece.getColor() != gameState.getCurrentTurn()) {
             return false;
         }
 
+        // Piece movement rules validation
         if (!isValidPieceMove(movingPiece, fromRow, fromCol, toRow, toCol, board)) {
             return false;
         }
 
+        // Simulate move and check for king safety
         Piece[][] tempBoard = simulateMove(board, fromRow, fromCol, toRow, toCol);
         if (isKingInCheck(tempBoard, movingPiece.getColor())) {
             return false;
         }
 
+        // Special moves validation
         return validateSpecialMoves(gameState, movingPiece, fromRow, fromCol, toRow, toCol, board);
     }
 
@@ -101,6 +106,7 @@ public class ChessGameService implements IChessGameService {
         return !hasLegalMoves(session.getBoard(), color);
     }
 
+    @Override
     public boolean isDraw(String gameId, PieceColor color) {
         var session = gameSessionRepository.findById(gameId)
                 .orElseThrow(() -> new IllegalArgumentException("Game session not found"));
@@ -255,16 +261,31 @@ public class ChessGameService implements IChessGameService {
     }
 
     private boolean isValidPawnMove(Piece piece, int fromRow, int fromCol, int toRow, int toCol, Piece[][] board) {
-        int direction = piece.getColor() == PieceColor.white ? 1 : -1;
-        int startRow = piece.getColor() == PieceColor.white ? 1 : 6;
+        int direction = piece.getColor() == PieceColor.white ? -1 : 1;  // White moves up (negative), black moves down (positive)
+        int startRow = piece.getColor() == PieceColor.white ? 6 : 1;    // White starts at row 6, black at row 1
 
+        // Forward move
         if (fromCol == toCol && board[toRow][toCol] == null) {
+            // Single move forward
             if (toRow == fromRow + direction) return true;
-            if (fromRow == startRow && toRow == fromRow + 2 * direction && board[fromRow + direction][fromCol] == null) return true;
+            // Double move from starting position
+            if (fromRow == startRow && toRow == fromRow + 2 * direction
+                    && board[fromRow + direction][fromCol] == null) {
+                return true;
+            }
         }
+
+        // Captures
         if (Math.abs(toCol - fromCol) == 1 && toRow == fromRow + direction) {
-            if (board[toRow][toCol] != null && board[toRow][toCol].getColor() != piece.getColor()) return true;
-            if (board[toRow - direction][toCol] != null && board[toRow - direction][toCol].isEnPassantTarget()) return true;
+            // Normal capture
+            if (board[toRow][toCol] != null && board[toRow][toCol].getColor() != piece.getColor()) {
+                return true;
+            }
+            // En passant
+            if (board[fromRow][toCol] != null
+                    && board[fromRow][toCol].isEnPassantTarget()) {
+                return true;
+            }
         }
         return false;
     }

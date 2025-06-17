@@ -21,7 +21,7 @@ public class ChessGameController {
 
     @PostMapping("/{gameId}/validate-move")
     public ResponseEntity<Boolean> validateMove(
-            @PathVariable String gameId,
+                @PathVariable String gameId,
             @RequestBody BoardPosition move) {
         boolean isValid = chessGameService.validateMove(gameId, move);
         return ResponseEntity.ok(isValid);
@@ -44,5 +44,12 @@ public class ChessGameController {
         return ResponseEntity.ok(isCheckmate);
     }
 
+    @GetMapping("/{gameId}/draw-status")
+    public ResponseEntity<Boolean> isDraw(
+            @PathVariable String gameId,
+            @RequestParam PieceColor color) {
+        boolean isDraw = chessGameService.isDraw(gameId, color);
+        return ResponseEntity.ok(isDraw);
+    }
 
 }
