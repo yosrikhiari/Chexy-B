@@ -220,26 +220,22 @@ public class GameSessionService implements IGameSessionService {
     public GameSession endGame(String gameId, String winnerId, boolean isDraw, TieResolutionOption tieOption) {
         GameSession session = gameSessionRepository.findById(gameId)
                 .orElseThrow(() -> new RuntimeException("Game session not found with id: " + gameId));
-
+        if (session.getStatus() == GameStatus.COMPLETED) {
+            logger.info("Game {} already completed, skipping update", gameId);
+            return session;
+        }
         if (session.getStatus() != GameStatus.ACTIVE) {
             throw new RuntimeException("Game is not active and cannot be ended");
         }
-
-        // Allow "BOT" as winner in single-player mode
-        if (winnerId != null && !session.getPlayerIds().contains(winnerId) &&
-                !(session.getGameMode() == GameMode.CLASSIC_SINGLE_PLAYER && "BOT".equals(winnerId))) {
-            throw new RuntimeException("Winner ID is not part of the game");
-        }
-
         session.setStatus(GameStatus.COMPLETED);
         session.setLastActivity(LocalDateTime.now());
         session.setActive(false);
-
-        GameResult result = buildGameResult(session, isDraw ? null : winnerId, isDraw, null);
+        GameResult result = buildGameResult(session, isDraw ? null : winnerId, isDraw, tieOption);
         updatePlayerStats(session, winnerId, isDraw, result);
         gameHistoryService.updateGameHistory(session.getGameHistoryId(), result, LocalDateTime.now());
-
-        return gameSessionRepository.save(session);
+        GameSession updatedSession = gameSessionRepository.save(session);
+        logger.info("Game ended: {} with status {}", gameId, updatedSession.getStatus());
+        return updatedSession;
     }
 
     private GameResult buildGameResult(GameSession session, String winnerId, boolean isDraw, TieResolutionOption tieOption) {

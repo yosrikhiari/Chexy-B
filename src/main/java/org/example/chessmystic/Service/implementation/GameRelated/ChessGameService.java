@@ -38,6 +38,11 @@ public class ChessGameService implements IChessGameService {
         this.tieResolutionOptionService = tieResolutionOptionService;
     }
 
+
+
+
+
+
     @Override
     @Transactional
     public boolean validateMove(String gameId, BoardPosition move) {
@@ -52,7 +57,6 @@ public class ChessGameService implements IChessGameService {
         int toRow = move.getTorow();
         int toCol = move.getTocol();
 
-        // Basic position validation
         if (!isValidPosition(fromRow, fromCol) || !isValidPosition(toRow, toCol)) {
             return false;
         }
@@ -62,23 +66,35 @@ public class ChessGameService implements IChessGameService {
             return false;
         }
 
-        // Turn validation
         if (movingPiece.getColor() != gameState.getCurrentTurn()) {
             return false;
         }
 
-        // Piece movement rules validation
+        // Handle castling first
+        if (movingPiece.getType() == PieceType.KING && Math.abs(toCol - fromCol) == 2) {
+            if (!validateSpecialMoves(gameState, movingPiece, fromRow, fromCol, toRow, toCol, board)) {
+                logger.info("Castling invalid: special move conditions not met");
+                return false;
+            }
+            Piece[][] tempBoard = simulateMove(board, fromRow, fromCol, toRow, toCol);
+            if (isKingInCheck(tempBoard, movingPiece.getColor())) {
+                logger.info("Castling invalid: king would be in check");
+                return false;
+            }
+            return true;
+        }
+
+        // Regular move validation
         if (!isValidPieceMove(movingPiece, fromRow, fromCol, toRow, toCol, board)) {
+            logger.info("Invalid piece move for " + movingPiece.getType());
             return false;
         }
 
-        // Simulate move and check for king safety
         Piece[][] tempBoard = simulateMove(board, fromRow, fromCol, toRow, toCol);
         if (isKingInCheck(tempBoard, movingPiece.getColor())) {
             return false;
         }
 
-        // Special moves validation
         return validateSpecialMoves(gameState, movingPiece, fromRow, fromCol, toRow, toCol, board);
     }
 
@@ -169,6 +185,7 @@ public class ChessGameService implements IChessGameService {
         }
         return ActionType.NORMAL;
     }
+
 
     void updateGameState(GameState gameState, Piece[][] board, GameMode gameMode) {
         gameState.setMoveCount(gameState.getMoveCount() + 1);
@@ -296,27 +313,81 @@ public class ChessGameService implements IChessGameService {
             boolean canCastle = piece.getColor() == PieceColor.white ?
                     (isKingSide ? gameState.isCanWhiteCastleKingSide() : gameState.isCanWhiteCastleQueenSide()) :
                     (isKingSide ? gameState.isCanBlackCastleKingSide() : gameState.isCanBlackCastleQueenSide());
+
+            // Add debug logging here
+            System.out.println("Castling validation:");
+            System.out.println("Color: " + piece.getColor());
+            System.out.println("Side: " + (isKingSide ? "kingside" : "queenside"));
+            System.out.println("Can castle flag: " + canCastle);
+            System.out.println("King has moved: " + piece.isHasMoved());
+
             if (!canCastle || piece.isHasMoved()) return false;
+
             int rookCol = isKingSide ? 7 : 0;
             Piece rook = board[fromRow][rookCol];
-            if (rook == null || rook.getType() != PieceType.ROOK || rook.isHasMoved()) return false;
+            if (rook == null || rook.getType() != PieceType.ROOK || rook.isHasMoved()) {
+                System.out.println("Rook validation failed");
+                return false;
+            }
+
+            // Check path is clear
             int step = isKingSide ? 1 : -1;
             for (int col = fromCol + step; col != rookCol; col += step) {
-                if (board[fromRow][col] != null) return false;
+                if (board[fromRow][col] != null) {
+                    System.out.println("Path not clear at " + fromRow + "," + col);
+                    return false;
+                }
             }
+
+            // Check squares aren't under attack - only the squares the king moves through
+            // Don't check the king's starting square (already checked elsewhere)
+            for (int col = fromCol; col != toCol + step; col += step) {
+                if (col == fromCol) continue; // Skip king's starting square
+                if (isSquareUnderAttack(fromRow, col, piece.getColor(), board)) {
+                    System.out.println("Square under attack at " + fromRow + "," + col);
+                    return false;
+                }
+            }
+
             return true;
         }
         return true;
     }
 
+    private boolean isSquareUnderAttack(int row, int col, PieceColor color, Piece[][] board) {
+        PieceColor opponentColor = color == PieceColor.white ? PieceColor.black : PieceColor.white;
+        for (int r = 0; r < 8; r++) {
+            for (int c = 0; c < 8; c++) {
+                Piece piece = board[r][c];
+                if (piece != null && piece.getColor() == opponentColor) {
+                    // For castling checks, we need to make sure we're not considering
+                    // the opponent's king as an attacker (since kings can't put each other in check)
+                    if (piece.getType() != PieceType.KING &&
+                            isValidPieceMove(piece, r, c, row, col, board)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+
+
     void handleSpecialMoves(GameState gameState, Piece piece, int fromRow, int fromCol, int toRow, int toCol, Piece[][] board) {
         if (piece.getType() == PieceType.KING && Math.abs(toCol - fromCol) == 2) {
+            // Castling move
             boolean isKingSide = toCol > fromCol;
             int rookCol = isKingSide ? 7 : 0;
             int rookToCol = isKingSide ? toCol - 1 : toCol + 1;
+
+            // Move the rook
             Piece rook = board[fromRow][rookCol];
             board[fromRow][rookToCol] = rook;
             board[fromRow][rookCol] = null;
+            rook.setHasMoved(true);
+
+            // Update castling flags
             if (piece.getColor() == PieceColor.white) {
                 gameState.setCanWhiteCastleKingSide(false);
                 gameState.setCanWhiteCastleQueenSide(false);
@@ -324,6 +395,8 @@ public class ChessGameService implements IChessGameService {
                 gameState.setCanBlackCastleKingSide(false);
                 gameState.setCanBlackCastleQueenSide(false);
             }
+
+            System.out.println("Castling performed - flags updated");
         }
         if (piece.getType() == PieceType.PAWN && Math.abs(toCol - fromCol) == 1 && board[toRow][toCol] == null) {
             int direction = piece.getColor() == PieceColor.white ? 1 : -1;
