@@ -33,10 +33,10 @@ public class PlayerActionService implements IPlayerActionService {
 
     @Override
     @Transactional
-    public PlayerAction recordAction(String gameSessionId, String playerId, ActionType actionType,
-                                     int fromX, int fromY, int toX, int toY, String gameHistoryId,
-                                     String rpgGameStateId, int roundNumber, String abilityUsed,
-                                     int damageDealt, boolean isCriticalHit, boolean b) {
+    public void recordAction(String gameSessionId, String playerId, ActionType actionType,
+                             int fromX, int fromY, int toX, int toY, String gameHistoryId,
+                             String rpgGameStateId, int roundNumber, String abilityUsed,
+                             int damageDealt, boolean isCriticalHit, boolean b) {
         List<PlayerAction> actions = playerActionRepository.findByGameSessionIdOrderBySequenceNumberAsc(gameSessionId);
         int sequenceNumber = actions.isEmpty() ? 1 : actions.get(actions.size() - 1).getSequenceNumber() + 1;
 
@@ -71,7 +71,6 @@ public class PlayerActionService implements IPlayerActionService {
             gameHistoryService.addPlayerAction(gameHistoryId, savedAction.getId());
         }
 
-        return savedAction;
     }
 
     @Override

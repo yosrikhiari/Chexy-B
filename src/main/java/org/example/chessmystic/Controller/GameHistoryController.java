@@ -1,10 +1,12 @@
 package org.example.chessmystic.Controller;
 
+import org.example.chessmystic.Models.Interactions.PlayerAction;
 import org.example.chessmystic.Models.Tracking.GameResult;
 import org.example.chessmystic.Models.Tracking.GameHistory;
 import org.example.chessmystic.Models.Tracking.GameSession;
 import org.example.chessmystic.Service.interfaces.GameRelated.IGameHistoryService;
 import org.example.chessmystic.Service.interfaces.GameRelated.IGameSessionService;
+import org.example.chessmystic.Service.interfaces.GameRelated.IPlayerActionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -22,13 +24,14 @@ public class GameHistoryController {
 
     private final IGameHistoryService gameHistoryService;
     private final IGameSessionService gameSessionService;
-
+    private final IPlayerActionService playerActionService;
 
 
     @Autowired
-    public GameHistoryController(IGameHistoryService gameHistoryService, IGameSessionService gameSessionService) {
+    public GameHistoryController(IGameHistoryService gameHistoryService, IGameSessionService gameSessionService, IPlayerActionService playerActionService) {
         this.gameHistoryService = gameHistoryService;
         this.gameSessionService = gameSessionService;
+        this.playerActionService = playerActionService;
     }
 
     @PostMapping
@@ -140,4 +143,12 @@ public class GameHistoryController {
                     .body(Map.of("error", "Failed to add player action", "message", "An unexpected error occurred"));
         }
     }
+
+
+    @GetMapping("/session/{gameSessionId}/actions")
+    public ResponseEntity<List<PlayerAction>> getActionsForGameSession(@PathVariable String gameSessionId) {
+        List<PlayerAction> actions = playerActionService.getActionsForGameSession(gameSessionId);
+        return ResponseEntity.ok(actions);
+    }
+
 }
