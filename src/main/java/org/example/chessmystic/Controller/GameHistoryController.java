@@ -52,14 +52,41 @@ public class GameHistoryController {
     @PostMapping("/complete/{historyId}")
     public ResponseEntity<?> completeGameHistory(@PathVariable String historyId, @RequestBody GameResult result) {
         try {
+            // Add validation for historyId
+            if (historyId == null || historyId.trim().isEmpty() || "undefined".equals(historyId) || "null".equals(historyId)) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(Map.of("error", "Invalid history ID",
+                                "message", "History ID cannot be null, empty, or undefined",
+                                "received", historyId));
+            }
+
+            // Check if game history exists before trying to update
+            Optional<GameHistory> existingHistory = gameHistoryService.findById(historyId);
+            if (existingHistory.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Map.of("error", "Game history not found",
+                                "message", "No game history found with ID: " + historyId));
+            }
+
+            // Validate the result object
+            if (result == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(Map.of("error", "Invalid game result",
+                                "message", "Game result cannot be null"));
+            }
+
             GameHistory history = gameHistoryService.updateGameHistory(historyId, result, LocalDateTime.now());
             return ResponseEntity.ok(history);
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", "Invalid history ID or data", "message", e.getMessage()));
+                    .body(Map.of("error", "Invalid history ID or data",
+                            "message", e.getMessage(),
+                            "historyId", historyId));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Failed to complete game history", "message", "An unexpected error occurred"));
+                    .body(Map.of("error", "Failed to complete game history",
+                            "message", "An unexpected error occurred",
+                            "historyId", historyId));
         }
     }
 
@@ -151,4 +178,34 @@ public class GameHistoryController {
         return ResponseEntity.ok(actions);
     }
 
+
+
+    @PostMapping("/ensure/{gameSessionId}")
+    public ResponseEntity<?> ensureGameHistory(@PathVariable String gameSessionId) {
+        try {
+            if (gameSessionId == null || gameSessionId.trim().isEmpty()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(Map.of("error", "Invalid game session ID"));
+            }
+
+            // Try to find existing history first
+            Optional<GameHistory> existingHistory = gameHistoryService.findByGameSessionId(gameSessionId);
+            if (existingHistory.isPresent()) {
+                return ResponseEntity.ok(existingHistory.get());
+            }
+
+            // If not found, create new one
+            GameSession session = gameSessionService.findById(gameSessionId)
+                    .orElseThrow(() -> new RuntimeException("Game session not found"));
+            GameHistory history = gameHistoryService.createGameHistory(session);
+            return ResponseEntity.status(HttpStatus.CREATED).body(history);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to ensure game history",
+                            "message", "An unexpected error occurred"));
+        }
+    }
 }
