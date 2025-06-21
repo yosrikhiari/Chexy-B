@@ -57,7 +57,7 @@ public class ChessGameService implements IChessGameService {
         int toRow = move.getTorow();
         int toCol = move.getTocol();
 
-        if (!isValidPosition(fromRow, fromCol) || !isValidPosition(toRow, toCol)) {
+        if (isValidPosition(fromRow, fromCol) || isValidPosition(toRow, toCol)) {
             return false;
         }
 
@@ -119,7 +119,7 @@ public class ChessGameService implements IChessGameService {
             return false;
         }
 
-        return !hasLegalMoves(session.getBoard(), color);
+        return hasLegalMoves(session.getBoard(), color);
     }
 
     @Override
@@ -129,7 +129,7 @@ public class ChessGameService implements IChessGameService {
         Piece[][] board = session.getBoard();
 
         // Stalemate: Not in check, but no legal moves
-        if (!isKingInCheck(board, color) && !hasLegalMoves(board, color)) {
+        if (!isKingInCheck(board, color) && hasLegalMoves(board, color)) {
             return true;
         }
 
@@ -192,7 +192,7 @@ public class ChessGameService implements IChessGameService {
         PieceColor nextTurn = gameState.getCurrentTurn() == PieceColor.white ? PieceColor.black : PieceColor.white;
         gameState.setCurrentTurn(nextTurn);
         gameState.setCheck(isKingInCheck(board, nextTurn));
-        gameState.setCheckmate(gameState.isCheck() && !hasLegalMoves(board, nextTurn));
+        gameState.setCheckmate(gameState.isCheck() && hasLegalMoves(board, nextTurn));
         if (gameState.isCheck()) {
             gameState.setCheckedPlayer(nextTurn);
         }
@@ -209,7 +209,7 @@ public class ChessGameService implements IChessGameService {
                             if (isValidPieceMove(piece, row, col, toRow, toCol, board)) {
                                 Piece[][] tempBoard = simulateMove(board, row, col, toRow, toCol);
                                 if (!isKingInCheck(tempBoard, color)) {
-                                    return true;
+                                    return false;
                                 }
                             }
                         }
@@ -217,11 +217,11 @@ public class ChessGameService implements IChessGameService {
                 }
             }
         }
-        return false;
+        return true;
     }
 
     private boolean isValidPosition(int row, int col) {
-        return row >= 0 && row < 8 && col >= 0 && col < 8;
+        return row < 0 || row >= 8 || col < 0 || col >= 8;
     }
 
     private boolean isValidPieceMove(Piece piece, int fromRow, int fromCol, int toRow, int toCol, Piece[][] board) {

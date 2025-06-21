@@ -10,7 +10,8 @@ import org.springframework.data.annotation.Id;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class RPGPiece {
+public class
+RPGPiece {
     @Id
     private String id;
 

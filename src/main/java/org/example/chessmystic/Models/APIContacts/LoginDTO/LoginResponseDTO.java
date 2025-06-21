@@ -1,9 +1,12 @@
 package org.example.chessmystic.Models.APIContacts.LoginDTO;
 
-import lombok.Builder;
-import lombok.Data;
+import lombok.*;
 import org.example.chessmystic.Models.APIContacts.UserDTO.UserResponseDTO;
 
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 @Data
 @Builder
 public class LoginResponseDTO {
