@@ -33,3 +33,5 @@ build/
 .vscode/
 .env
 application-local.properties
+.env
+*.env
