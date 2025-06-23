@@ -1,0 +1,104 @@
+version: '3.8'
+
+services:
+  postgres:
+    build:
+      context: ./postgres
+      dockerfile: Dockerfile
+    container_name: chexy_postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - chexy-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak_user -d keycloak_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  mongodb:
+    build:
+      context: ./mongodb
+      dockerfile: Dockerfile
+    container_name: chexy_mongodb
+    volumes:
+      - mongodb-data:/data/db
+    networks:
+      - chexy-network
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  keycloak:
+    build:
+      context: ./keycloak
+      dockerfile: Dockerfile
+    container_name: chexy_keycloak
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./realm-export.json:/opt/keycloak/data/import/realm.json
+    networks:
+      - chexy-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/realms/chess/.well-known/openid-configuration || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 120s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: chexy_backend
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATA_MONGODB_URI: mongodb://mongo_user:mongo_password@mongodb:27017/chessmystic
+      KEYCLOAK_SERVER_URL: http://keycloak:8080
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/chess/protocol/openid-connect/certs
+      JAVA_OPTS: -Xmx512m -Xms256m -Djava.security.egd=file:/dev/./urandom
+      SPRING_DATA_MONGODB_CONNECTION_TIMEOUT: 30000
+      SPRING_DATA_MONGODB_SOCKET_TIMEOUT: 30000
+      HUGGINGFACE_TOKEN: ${HUGGINGFACE_TOKEN:-}
+      GMAIL_PASSWORD: zelt gszv ygla stfa
+    networks:
+      - chexy-network
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    command: sh -c "while ! curl -f http://keycloak:8080/realms/chess/.well-known/openid-configuration; do echo 'Waiting for Keycloak...'; sleep 5; done; java -jar app.jar"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8081/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 30s
+      retries: 10
+      start_period: 180s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  postgres_data:
+    driver: local
+  mongodb-data:
+    driver: local
+
+networks:
+  chexy-network:
+    driver: bridge
