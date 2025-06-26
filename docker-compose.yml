@@ -23,6 +23,26 @@ services:
       retries: 5
       start_period: 30s
 
+  ai-model:
+    build:
+      context: /home/yosri/Documents/Projects/Chexy/Chexy-M/Models
+      dockerfile: Dockerfile
+    container_name: chexy_ai_model
+    ports:
+      - "5000:5000"
+    networks:
+      - chexy-network
+    environment:
+      STOCKFISH_PATH: /usr/local/bin/stockfish
+    # healthcheck
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:5000/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
   mongodb:
     build:
       context: ./mongodb
@@ -86,6 +106,37 @@ services:
     #   timeout: 10s
     #   retries: 5
     #   start_period: 60s
+
+
+  frontend:
+    build:
+      context: /home/yosri/Documents/Projects/Chexy/Chexy-F/Chexy
+      dockerfile: Dockerfile
+    container_name: chexy_frontend
+    ports:
+      - "3000:80"
+    networks:
+      - chexy-network
+    depends_on:
+      backend:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+    environment:
+      - NODE_ENV=production
+      - REACT_APP_API_URL=http://localhost:8081
+      - REACT_APP_KEYCLOAK_URL=http://localhost:8080
+      - REACT_APP_KEYCLOAK_REALM=chess
+      - REACT_APP_KEYCLOAK_CLIENT_ID=chessid
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "--tries=1", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+
 
   backend:
     build:
@@ -176,4 +227,3 @@ volumes:
 networks:
   chexy-network:
     driver: bridge
-
