@@ -15,7 +15,7 @@ services:
     networks:
       - chexy-network
     ports:
-      - "5432:5432"  # Added for debugging
+      - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U keycloak_user -d keycloak_db"]
       interval: 10s
@@ -107,37 +107,6 @@ services:
     #   retries: 5
     #   start_period: 60s
 
-
-  frontend:
-    build:
-      context: /home/yosri/Documents/Projects/Chexy/Chexy-F/Chexy
-      dockerfile: Dockerfile
-    container_name: chexy_frontend
-    ports:
-      - "3000:80"
-    networks:
-      - chexy-network
-    depends_on:
-      backend:
-        condition: service_healthy
-      keycloak:
-        condition: service_started
-    environment:
-      - NODE_ENV=production
-      - REACT_APP_API_URL=http://localhost:8081
-      - REACT_APP_KEYCLOAK_URL=http://localhost:8080
-      - REACT_APP_KEYCLOAK_REALM=chess
-      - REACT_APP_KEYCLOAK_CLIENT_ID=chessid
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "--tries=1", "http://localhost:80"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
-    restart: unless-stopped
-
-
-
   backend:
     build:
       context: ./backend
@@ -217,6 +186,38 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+
+  frontend:
+    build:
+      context: /home/yosri/Documents/Projects/Chexy/Chexy-F/Chexy
+      dockerfile: Dockerfile
+    container_name: chexy_frontend
+    ports:
+      - "3000:80"
+    networks:
+      - chexy-network
+    depends_on:
+      backend:
+        condition: service_started
+      keycloak:
+        condition: service_started
+    environment:
+      - NODE_ENV=production
+      - REACT_APP_API_URL=http://localhost:8081
+      - REACT_APP_KEYCLOAK_URL=http://localhost:8080
+      - REACT_APP_KEYCLOAK_REALM=chess
+      - REACT_APP_KEYCLOAK_CLIENT_ID=chessid
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "--tries=1", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+
+
 
 volumes:
   postgres_data:
