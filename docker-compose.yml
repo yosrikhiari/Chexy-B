@@ -1,9 +1,7 @@
 version: '3.8'
 services:
   postgres:
-    build:
-      context: ./postgres
-      dockerfile: Dockerfile
+    image: yosrikhiari/chexy-postgres:latest
     container_name: chexy_postgres
     environment:
       POSTGRES_DB: keycloak_db
@@ -24,9 +22,7 @@ services:
       start_period: 30s
 
   ai-model:
-    build:
-      context: /home/yosri/Documents/Projects/Chexy/Chexy-M/Models
-      dockerfile: Dockerfile
+    image: yosrikhiari/chexy-ai-model:latest
     container_name: chexy_ai_model
     ports:
       - "5000:5000"
@@ -44,9 +40,7 @@ services:
     restart: unless-stopped
 
   mongodb:
-    build:
-      context: ./mongodb
-      dockerfile: Dockerfile
+    image: yosrikhiari/chexy-mongodb:latest
     container_name: chexy_mongodb
     environment:
       MONGO_INITDB_ROOT_USERNAME: mongo_user
@@ -66,9 +60,7 @@ services:
       start_period: 30s
 
   keycloak:
-    build:
-      context: ./keycloak
-      dockerfile: Dockerfile
+    image: yosrikhiari/chexy-keycloak:latest
     container_name: chexy_keycloak
     environment:
       # Database configuration
@@ -108,9 +100,7 @@ services:
     #   start_period: 60s
 
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: yosrikhiari/chexy-backend:latest 
     container_name: chexy_backend
     ports:
       - "8081:8081"
@@ -189,9 +179,7 @@ services:
 
 
   frontend:
-    build:
-      context: /home/yosri/Documents/Projects/Chexy/Chexy-F/Chexy
-      dockerfile: Dockerfile
+    image: yosrikhiari/chexy-frontend:latest
     container_name: chexy_frontend
     ports:
       - "3000:80"
