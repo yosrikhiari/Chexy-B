@@ -75,6 +75,22 @@ public class KeycloakUserService implements IKeycloakUserService {
         }
     }
 
+    public void sendPasswordResetEmail(String email) {
+        try {
+            Keycloak keycloak = keycloakClient.getKeycloak();
+            List<UserRepresentation> users = keycloak.realm(realm).users().searchByEmail(email, true);
+            if (users.isEmpty()) {
+                System.out.println("No user found for email: " + email);
+                return;
+            }
+            String userId = users.get(0).getId();
+            UserResource userResource = keycloak.realm(realm).users().get(userId);
+            userResource.executeActionsEmail(List.of("UPDATE_PASSWORD"));
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to send password reset email: " + e.getMessage(), e);
+        }
+    }
+
     private UserRepresentation createUserRepresentation(String username, String firstname, String lastname, String email, String password) {
         UserRepresentation user = new UserRepresentation();
         user.setUsername(username);

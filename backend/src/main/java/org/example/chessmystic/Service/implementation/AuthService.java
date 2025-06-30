@@ -34,4 +34,9 @@ public class AuthService implements IAuthService {
     public boolean changePassword(String userId, String newPassword) {
         return keycloakUserService.changePassword(userId, newPassword);
     }
+
+    @Override
+    public void sendPasswordResetEmail(String email) {
+        keycloakUserService.sendPasswordResetEmail(email);
+    }
 }

@@ -66,4 +66,15 @@ public class AuthController {
         }
     }
 
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@RequestBody Map<String, String> request) {
+        String email = request.get("email");
+        try {
+            authService.sendPasswordResetEmail(email);
+            return ResponseEntity.ok().body(Map.of("message", "If an account exists for this email, a reset link will be sent."));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", "Failed to send reset email", "message", e.getMessage()));
+        }
+    }
+
 }
