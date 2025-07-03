@@ -13,6 +13,4 @@ public class ChangePasswordRequestDTO {
     // Getters and setters
     private String userId;
     private String newPassword;
-
-
 }
