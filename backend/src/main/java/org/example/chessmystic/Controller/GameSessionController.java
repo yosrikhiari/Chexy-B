@@ -10,6 +10,7 @@ import org.example.chessmystic.Service.interfaces.GameRelated.IGameSessionServic
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
@@ -192,6 +193,20 @@ public class GameSessionController {
         }
     }
 
+    @MessageMapping("/matchmaking/accept")
+    public void acceptMatch(@Payload Map<String, String> payload) {
+        String matchId = payload.get("matchId");
+        String userId = payload.get("userId");
+        matchmakingService.acceptMatch(matchId, userId);
+    }
+
+    @MessageMapping("/matchmaking/decline")
+    public void declineMatch(@Payload Map<String, String> payload) {
+        String matchId = payload.get("matchId");
+        String userId = payload.get("userId");
+        matchmakingService.declineMatch(matchId, userId);
+    }
+
     @MessageMapping("/matchmaking/join")
     public void joinMatchmaking(Map<String, Object> payload) {
         String userId = (String) payload.get("userId");
@@ -204,4 +219,5 @@ public class GameSessionController {
         String userId = payload.get("userId");
         matchmakingService.leaveQueue(userId);
     }
+
 }
