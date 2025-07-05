@@ -5,9 +5,11 @@ import org.example.chessmystic.Models.GameStateandFlow.GameState;
 import org.example.chessmystic.Models.GameStateandFlow.GameStatus;
 import org.example.chessmystic.Models.Tracking.GameSession;
 import org.example.chessmystic.Models.UIUX.TieResolutionOption;
+import org.example.chessmystic.Service.implementation.GameRelated.MatchmakingService;
 import org.example.chessmystic.Service.interfaces.GameRelated.IGameSessionService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
@@ -17,10 +19,12 @@ import java.util.*;
 public class GameSessionController {
 
     private final IGameSessionService gameSessionService;
+    private final MatchmakingService matchmakingService;
 
 
-    public GameSessionController(IGameSessionService gameSessionService) {
+    public GameSessionController(IGameSessionService gameSessionService, MatchmakingService matchmakingService) {
         this.gameSessionService = gameSessionService;
+        this.matchmakingService = matchmakingService;
     }
 
     @PostMapping
@@ -188,6 +192,16 @@ public class GameSessionController {
         }
     }
 
+    @MessageMapping("/matchmaking/join")
+    public void joinMatchmaking(Map<String, Object> payload) {
+        String userId = (String) payload.get("userId");
+        int points = ((Number) payload.get("points")).intValue();
+        matchmakingService.joinQueue(userId, points);
+    }
 
-
+    @MessageMapping("/matchmaking/leave")
+    public void leaveMatchmaking(Map<String, String> payload) {
+        String userId = payload.get("userId");
+        matchmakingService.leaveQueue(userId);
+    }
 }
