@@ -189,9 +189,59 @@ public class MatchmakingService {
         PendingMatch pendingMatch = pendingMatches.get(matchId);
         if (pendingMatch != null) {
             logger.info("Player {} declined match {}", userId, matchId);
-            cancelPendingMatch(pendingMatch, "Match declined by " + userId);
+
+            // Cancel the match but don't re-add the declining player to queue
+            cancelPendingMatchWithDecliningUser(pendingMatch, userId, "Match declined by " + userId);
         }
     }
+
+    private void cancelPendingMatchWithDecliningUser(PendingMatch pendingMatch, String decliningUserId, String reason) {
+        logger.info("Cancelling match {}: {}", pendingMatch.matchId, reason);
+
+        // Determine which player is declining and which is the opponent
+        String opponentId = pendingMatch.player1.userId.equals(decliningUserId)
+                ? pendingMatch.player2.userId
+                : pendingMatch.player1.userId;
+
+        // Send different messages to declining user vs opponent
+        Map<String, Object> decliningUserData = Map.of(
+                "message", "You declined the match and left the queue",
+                "leftQueue", true
+        );
+        Map<String, Object> opponentData = Map.of(
+                "message", "Opponent declined the match. You remain in queue",
+                "leftQueue", false
+        );
+
+        messagingTemplate.convertAndSend("/queue/matchmaking/matchCancelled/" + decliningUserId, decliningUserData);
+        messagingTemplate.convertAndSend("/queue/matchmaking/matchCancelled/" + opponentId, opponentData);
+
+        // Re-add only the non-declining player to queue
+        synchronized (queueLock) {
+            if (!pendingMatch.player1.userId.equals(decliningUserId)) {
+                queue.add(pendingMatch.player1);
+                logger.info("Re-added player {} to queue after opponent declined", pendingMatch.player1.userId);
+            } else {
+                logger.info("Player {} left queue after declining match", pendingMatch.player1.userId);
+            }
+
+            if (!pendingMatch.player2.userId.equals(decliningUserId)) {
+                queue.add(pendingMatch.player2);
+                logger.info("Re-added player {} to queue after opponent declined", pendingMatch.player2.userId);
+            } else {
+                logger.info("Player {} left queue after declining match", pendingMatch.player2.userId);
+            }
+
+            // Update queue status for everyone
+            messagingTemplate.convertAndSend("/topic/matchmaking/status",
+                    Map.of("playersInQueue", queue.size()));
+        }
+
+        // Clean up
+        pendingMatch.timeoutTimer.cancel();
+        pendingMatches.remove(pendingMatch.matchId);
+    }
+
 
     private void checkMatchAcceptance(PendingMatch pendingMatch) {
         if (pendingMatch.player1Accepted && pendingMatch.player2Accepted) {
