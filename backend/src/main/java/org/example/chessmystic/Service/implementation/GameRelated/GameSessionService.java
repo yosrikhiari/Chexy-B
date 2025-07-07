@@ -30,7 +30,7 @@ import java.util.*;
 @Service
 public class GameSessionService implements IGameSessionService {
 
-    private static final Logger logger = LoggerFactory.getLogger(GameSessionService.class);
+    public static final Logger logger = LoggerFactory.getLogger(GameSessionService.class);
     private final GameSessionRepository gameSessionRepository;
     private final UserService userService;
     private final GameHistoryService gameHistoryService;

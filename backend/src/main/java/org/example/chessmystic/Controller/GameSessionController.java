@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
 
+import static org.example.chessmystic.Service.implementation.GameRelated.GameSessionService.logger;
+
 @RestController
 @RequestMapping("/game-session")
 public class GameSessionController {
@@ -48,12 +50,15 @@ public class GameSessionController {
     public ResponseEntity<?> findById(@PathVariable String gameId) {
         try {
             Optional<GameSession> session = gameSessionService.findById(gameId);
-            return session.map(ResponseEntity::ok)
-                    .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
-                            .body((GameSession) Map.of("error", "Game session not found")));
+            if (session.isPresent()) {
+                logger.info("Returning game session for gameId {}: {}", gameId, session.get());
+                return ResponseEntity.ok(session.get());
+            }
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "Game session not found"));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Failed to find game session", "message", "An unexpected error occurred"));
+                    .body(Map.of("error", "Failed to find game session", "message", e.getMessage()));
         }
     }
 

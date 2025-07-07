@@ -26,6 +26,7 @@ public class MatchmakingService {
     private final List<MatchmakingPlayer> queue = new ArrayList<>();
     private final Object queueLock = new Object();
     private final Map<String, PendingMatch> pendingMatches = new ConcurrentHashMap<>();
+    private final Map<String, MatchmakingPlayer> playersInQueue = new ConcurrentHashMap<>();
 
     @Autowired
     public MatchmakingService(GameSessionService gameSessionService) {
@@ -34,8 +35,7 @@ public class MatchmakingService {
 
     public void joinQueue(String userId, int points) {
         synchronized (queueLock) {
-            // Check if user is already in queue
-            if (queue.stream().anyMatch(p -> p.userId.equals(userId))) {
+            if (playersInQueue.containsKey(userId)) {
                 logger.warn("User {} already in queue", userId);
                 messagingTemplate.convertAndSendToUser(userId, "/queue/matchmaking/error",
                         Map.of("message", "You are already in the matchmaking queue"));
@@ -44,9 +44,8 @@ public class MatchmakingService {
 
             MatchmakingPlayer player = new MatchmakingPlayer(userId, points, LocalDateTime.now());
             queue.add(player);
+            playersInQueue.put(userId, player);
             logger.info("Player {} joined queue with {} points. Queue size: {}", userId, points, queue.size());
-
-            // Broadcast queue size to all subscribed clients
             messagingTemplate.convertAndSend("/topic/matchmaking/status",
                     Map.of("playersInQueue", queue.size()));
         }
@@ -56,11 +55,10 @@ public class MatchmakingService {
         synchronized (queueLock) {
             boolean removed = queue.removeIf(p -> p.userId.equals(userId));
             if (removed) {
+                playersInQueue.remove(userId);
                 logger.info("Player {} left queue. Queue size: {}", userId, queue.size());
                 messagingTemplate.convertAndSend("/topic/matchmaking/status",
                         Map.of("playersInQueue", queue.size()));
-            } else {
-                logger.warn("Player {} not found in queue to leave", userId);
             }
         }
     }
@@ -132,6 +130,7 @@ public class MatchmakingService {
     private void createPendingMatch(MatchmakingPlayer player1, MatchmakingPlayer player2) {
         String matchId = UUID.randomUUID().toString();
         PendingMatch pendingMatch = new PendingMatch(matchId, player1, player2);
+        pendingMatches.put(matchId, pendingMatch);
 
         // Send match found notifications to both players
         Map<String, Object> matchData1 = Map.of(
@@ -160,6 +159,8 @@ public class MatchmakingService {
             }
         }, 30000); // 30 seconds timeout
 
+        playersInQueue.remove(player1.userId);
+        playersInQueue.remove(player2.userId);
         pendingMatch.timeoutTimer = timer;
         pendingMatches.put(matchId, pendingMatch);
     }
