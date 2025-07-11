@@ -225,4 +225,16 @@ public class GameSessionController {
         matchmakingService.leaveQueue(userId);
     }
 
+
+    @GetMapping("/api/matchmaking/status")
+    public ResponseEntity<?> getMatchmakingStatus() {
+        try {
+            int playersInQueue = matchmakingService.getQueueSize();
+            return ResponseEntity.ok(Map.of("playersInQueue", playersInQueue));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to get matchmaking status"));
+        }
+    }
+
 }

@@ -31,26 +31,12 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
-                .setAllowedOriginPatterns("*")
-                .addInterceptors(new HttpSessionHandshakeInterceptor() {
-                    @Override
-                    public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
-                                                   WebSocketHandler wsHandler, Map<String, Object> attributes) {
-                        // Extract userId from query parameters
-                        String query = request.getURI().getQuery();
-                        if (query != null && query.contains("userId=")) {
-                            String[] params = query.split("&");
-                            for (String param : params) {
-                                if (param.startsWith("userId=")) {
-                                    String userId = param.split("=")[1];
-                                    attributes.put("userId", userId);
-                                    break;
-                                }
-                            }
-                        }
-                        return true;
-                    }
-                })
+                .setAllowedOrigins(
+                        "http://localhost:3000",
+                        "http://localhost:8080",
+                        "http://localhost:4200",
+                        "http://localhost:8082"
+                )
                 .withSockJS();
     }
 }

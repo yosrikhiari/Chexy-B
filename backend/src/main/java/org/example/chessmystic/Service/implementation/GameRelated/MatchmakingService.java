@@ -51,6 +51,12 @@ public class MatchmakingService {
         }
     }
 
+    public int getQueueSize() {
+        synchronized (queueLock) {
+            return queue.size();
+        }
+    }
+
     public void leaveQueue(String userId) {
         synchronized (queueLock) {
             boolean removed = queue.removeIf(p -> p.userId.equals(userId));
