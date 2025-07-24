@@ -1,20 +1,18 @@
 package org.example.chessmystic.Config;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.server.ServerHttpRequest;
-import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
-import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
-import org.springframework.web.socket.server.support.HttpSessionHandshakeInterceptor;
-
-import java.util.Map;
 
 @Configuration
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+
+    @Autowired
+    private JwtHandshakeInterceptor jwtHandshakeInterceptor;
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
@@ -31,12 +29,13 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
-                .setAllowedOrigins(
-                        "http://localhost:3000",
-                        "http://localhost:8080",
-                        "http://localhost:4200",
-                        "http://localhost:8082"
-                )
-                .withSockJS();
+                .setAllowedOriginPatterns("*") // More flexible than setAllowedOrigins
+                .addInterceptors(jwtHandshakeInterceptor)
+                .withSockJS()
+                .setHeartbeatTime(25000) // 25 seconds
+                .setDisconnectDelay(5000) // 5 seconds
+                .setStreamBytesLimit(128 * 1024) // 128KB
+                .setHttpMessageCacheSize(1000)
+                .setWebSocketEnabled(true);
     }
 }
