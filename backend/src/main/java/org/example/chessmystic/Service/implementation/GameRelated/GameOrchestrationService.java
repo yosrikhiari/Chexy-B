@@ -1,10 +1,12 @@
 package org.example.chessmystic.Service.implementation.GameRelated;
 
 import org.example.chessmystic.Models.GameStateandFlow.GameState;
+import org.example.chessmystic.Models.GameStateandFlow.GameTimers;
 import org.example.chessmystic.Models.Interactions.ActionType;
 import org.example.chessmystic.Models.chess.BoardPosition;
 import org.example.chessmystic.Models.chess.Piece;
 import org.example.chessmystic.Models.chess.PieceColor;
+import org.example.chessmystic.Controller.TimerWebSocketController;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,14 +17,17 @@ public class GameOrchestrationService {
     private final ChessGameService chessGameService;
     private final PlayerActionService playerActionService;
     private final GameSessionService gameSessionService;
+    private final TimerWebSocketController timerWebSocketController;
 
     @Autowired
     public GameOrchestrationService(ChessGameService chessGameService,
                                     PlayerActionService playerActionService,
-                                    GameSessionService gameSessionService) {
+                                    GameSessionService gameSessionService,
+                                    TimerWebSocketController timerWebSocketController) {
         this.chessGameService = chessGameService;
         this.playerActionService = playerActionService;
         this.gameSessionService = gameSessionService;
+        this.timerWebSocketController = timerWebSocketController;
     }
 
     @Transactional
@@ -38,7 +43,6 @@ public class GameOrchestrationService {
                     return new IllegalArgumentException("Game session not found");
                 });
 
-        // Validate move coordinates first
         if (!isValidPosition(move.getRow(), move.getCol()) ||
                 !isValidPosition(move.getTorow(), move.getTocol())) {
             System.err.println("Invalid coordinates detected: " + move);
@@ -68,7 +72,6 @@ public class GameOrchestrationService {
         Piece movingPiece = board[fromRow][fromCol];
         Piece targetPiece = board[toRow][toCol];
 
-        // Ensure there's a piece to move
         if (movingPiece == null) {
             throw new IllegalArgumentException("No piece at source position");
         }
@@ -81,7 +84,6 @@ public class GameOrchestrationService {
         ActionType actionType = chessGameService.determineActionType(
                 movingPiece, targetPiece, fromRow, fromCol, toRow, toCol, board);
 
-        // Update board
         movingPiece.setHasMoved(true);
         board[toRow][toCol] = movingPiece;
         board[fromRow][fromCol] = null;
@@ -98,9 +100,21 @@ public class GameOrchestrationService {
 
         chessGameService.updateGameState(gameState, board, session.getGameMode());
 
+        // Update timers
+        GameTimers timers = session.getTimers();
+        if (gameState.getCurrentTurn() == PieceColor.white) {
+            timers.getBlack().setActive(false);
+            timers.getWhite().setActive(true);
+        } else {
+            timers.getWhite().setActive(false);
+            timers.getBlack().setActive(true);
+        }
+        session.setTimers(timers);
+
         session.setGameState(gameState);
         session.setBoard(board);
         gameSessionService.saveSession(session);
+        timerWebSocketController.broadcastTimerUpdate(gameId, session);
 
         return gameState;
     }
@@ -108,7 +122,6 @@ public class GameOrchestrationService {
     private boolean isValidPosition(int row, int col) {
         return row >= 0 && row < 8 && col >= 0 && col < 8;
     }
-
 
     private void printBoard(Piece[][] board) {
         System.out.println("Board state:");
@@ -131,9 +144,8 @@ public class GameOrchestrationService {
                     System.out.print("-- ");
                 }
             }
-            System.out.println(" " + (8 - row)); // Add row number (chess rank)
+            System.out.println(" " + (8 - row));
         }
-        System.out.println("  a  b  c  d  e  f  g  h"); // Add column labels
+        System.out.println("  a  b  c  d  e  f  g  h");
     }
-
 }

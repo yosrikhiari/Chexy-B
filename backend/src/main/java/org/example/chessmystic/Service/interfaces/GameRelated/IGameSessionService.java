@@ -27,4 +27,7 @@ public interface IGameSessionService {
     Optional<GameSession> findByInviteCode(String inviteCode);
 
     GameSession getGameSessionByGameStateId(String gameStateId);
+
+    @Transactional
+    void saveSession(GameSession session);
 }

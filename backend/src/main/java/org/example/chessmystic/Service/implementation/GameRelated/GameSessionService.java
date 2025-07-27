@@ -18,9 +18,11 @@ import org.example.chessmystic.Repository.RPGGameStateRepository;
 import org.example.chessmystic.Repository.UserRepository;
 import org.example.chessmystic.Service.implementation.UserService;
 import org.example.chessmystic.Service.interfaces.GameRelated.IGameSessionService;
+import org.example.chessmystic.Controller.TimerWebSocketController;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,20 +39,24 @@ public class GameSessionService implements IGameSessionService {
     private final PlayerProfileRepository playerProfileRepository;
     private final UserRepository userRepository;
     private final RPGGameStateRepository rpgGameStateRepository;
-
+    private final TimerWebSocketController timerWebSocketController;
 
     @Autowired
     public GameSessionService(GameSessionRepository gameSessionRepository,
                               UserService userService,
                               GameHistoryService gameHistoryService,
                               ChessGameService chessGameService,
-                              PlayerProfileRepository playerProfileRepository, UserRepository userRepository, RPGGameStateRepository rpgGameStateRepository) {
+                              PlayerProfileRepository playerProfileRepository,
+                              UserRepository userRepository,
+                              RPGGameStateRepository rpgGameStateRepository,
+                              TimerWebSocketController timerWebSocketController) {
         this.gameSessionRepository = gameSessionRepository;
         this.userService = userService;
         this.gameHistoryService = gameHistoryService;
         this.playerProfileRepository = playerProfileRepository;
         this.userRepository = userRepository;
         this.rpgGameStateRepository = rpgGameStateRepository;
+        this.timerWebSocketController = timerWebSocketController;
     }
 
     @Override
@@ -68,9 +74,6 @@ public class GameSessionService implements IGameSessionService {
                 .isConnected(true)
                 .lastSeen(LocalDateTime.now())
                 .build();
-
-
-
 
         GameSession session = GameSession.builder()
                 .gameId(UUID.randomUUID().toString())
@@ -95,7 +98,7 @@ public class GameSessionService implements IGameSessionService {
                 .build();
         if (gameMode == GameMode.CLASSIC_SINGLE_PLAYER) {
             PlayerSessionInfo botInfo = PlayerSessionInfo.builder()
-                    .id("BOT_" + inviteCode) // or some other bot ID
+                    .id("BOT_" + inviteCode)
                     .userId("BOT")
                     .keycloakId(null)
                     .username("ChessBot")
@@ -111,7 +114,6 @@ public class GameSessionService implements IGameSessionService {
             session.setStartedAt(LocalDateTime.now());
             GameHistory gameHistory = gameHistoryService.createGameHistory(session);
             session.setGameHistoryId(gameHistory.getId());
-            // Save the session to ensure the ACTIVE status is persisted
             session = gameSessionRepository.save(session);
         }
 
@@ -146,7 +148,6 @@ public class GameSessionService implements IGameSessionService {
             throw new RuntimeException("Player is already in the game");
         }
 
-        // Allow multiple black players only for MULTIPLAYER_RPG
         if (session.getGameMode() != GameMode.MULTIPLAYER_RPG && !session.getBlackPlayer().isEmpty()) {
             throw new RuntimeException("Game is already full");
         }
@@ -180,7 +181,6 @@ public class GameSessionService implements IGameSessionService {
         GameSession session = gameSessionRepository.findById(gameId)
                 .orElseThrow(() -> new RuntimeException("Game session not found with id: " + gameId));
 
-        // Allow single-player mode to start with only white player
         if (session.getGameMode() == GameMode.CLASSIC_SINGLE_PLAYER) {
             if (session.getWhitePlayer() == null) {
                 throw new RuntimeException("White player not assigned for single-player game");
@@ -191,7 +191,6 @@ public class GameSessionService implements IGameSessionService {
             }
         }
 
-        // Check if the game is already active
         if (session.getStatus() == GameStatus.ACTIVE) {
             logger.warn("Game {} is already active, no action needed.", gameId);
             return session;
@@ -211,6 +210,7 @@ public class GameSessionService implements IGameSessionService {
         session.setGameHistoryId(gameHistory.getId());
 
         GameSession updatedSession = gameSessionRepository.save(session);
+        timerWebSocketController.broadcastTimerUpdate(gameId, updatedSession);
         logger.info("Game started: {}", gameId);
         return updatedSession;
     }
@@ -234,8 +234,37 @@ public class GameSessionService implements IGameSessionService {
         updatePlayerStats(session, winnerId, isDraw, result);
         gameHistoryService.updateGameHistory(session.getGameHistoryId(), result, LocalDateTime.now());
         GameSession updatedSession = gameSessionRepository.save(session);
+        timerWebSocketController.broadcastTimerUpdate(gameId, updatedSession);
         logger.info("Game ended: {} with status {}", gameId, updatedSession.getStatus());
         return updatedSession;
+    }
+
+    @Scheduled(fixedRate = 1000) // Every second
+    public void updateTimers() {
+        List<GameSession> activeSessions = gameSessionRepository.findByStatus(GameStatus.ACTIVE);
+        for (GameSession session : activeSessions) {
+            GameTimers timers = session.getTimers();
+            GameState gameState = session.getGameState();
+            if (timers == null || gameState == null) continue;
+
+            if (gameState.getCurrentTurn() == PieceColor.white && timers.getWhite().isActive()) {
+                int newTime = timers.getWhite().getTimeLeft() - 1;
+                timers.getWhite().setTimeLeft(Math.max(0, newTime));
+                if (newTime <= 0) {
+                    endGame(session.getGameId(), session.getBlackPlayer().getFirst().getUserId(), false, null);
+                }
+            } else if (gameState.getCurrentTurn() == PieceColor.black && timers.getBlack().isActive()) {
+                int newTime = timers.getBlack().getTimeLeft() - 1;
+                timers.getBlack().setTimeLeft(Math.max(0, newTime));
+                if (newTime <= 0) {
+                    endGame(session.getGameId(), session.getWhitePlayer().getUserId(), false, null);
+                }
+            }
+
+            session.setTimers(timers);
+            gameSessionRepository.save(session);
+            timerWebSocketController.broadcastTimerUpdate(session.getGameId(), session);
+        }
     }
 
     private GameResult buildGameResult(GameSession session, String winnerId, boolean isDraw, TieResolutionOption tieOption) {
@@ -245,7 +274,7 @@ public class GameSessionService implements IGameSessionService {
 
         if (winnerId != null) {
             resultBuilder.winnerid(winnerId)
-                    .gameEndReason(GameEndReason.timeout); // Default to timeout for simplicity
+                    .gameEndReason(GameEndReason.timeout);
             var winner = "BOT".equals(winnerId) ? null : userService.findById(winnerId).orElse(null);
             if (winner != null) {
                 resultBuilder.winnerName(winner.getFirstName() + " " + winner.getLastName())
@@ -275,12 +304,10 @@ public class GameSessionService implements IGameSessionService {
     private void updatePlayerStats(GameSession session, String winnerId, boolean isDraw, GameResult result) {
         List<String> playerIds = session.getPlayerIds();
         boolean isRPGMode = session.getGameMode() == GameMode.SINGLE_PLAYER_RPG ||
-                session.getGameMode() == GameMode.MULTIPLAYER_RPG ;
+                session.getGameMode() == GameMode.MULTIPLAYER_RPG;
 
         for (String playerId : playerIds) {
-            if ("BOT".equals(playerId)) {
-                continue; // Skip bot
-            }
+            if ("BOT".equals(playerId)) continue;
             PlayerProfile profile = userService.getOrCreatePlayerProfile(playerId);
             PlayerGameStats stats = profile.getGameStats();
             if (stats == null) {
@@ -299,10 +326,8 @@ public class GameSessionService implements IGameSessionService {
                 profile.setGameStats(stats);
             }
 
-            // Create a final reference for use in lambda
             final PlayerGameStats finalStats = stats;
 
-            // Update game counts
             stats.setTotalGamesPlayed(stats.getTotalGamesPlayed() + 1);
             if (isRPGMode) {
                 stats.setRpgGamesPlayed(stats.getRpgGamesPlayed() + 1);
@@ -310,7 +335,6 @@ public class GameSessionService implements IGameSessionService {
                 stats.setClassicGamesPlayed(stats.getClassicGamesPlayed() + 1);
             }
 
-            // Update win counts and streak
             boolean isWinner = playerId.equals(winnerId);
             if (isWinner) {
                 stats.setTotalGamesWon(stats.getTotalGamesWon() + 1);
@@ -323,10 +347,9 @@ public class GameSessionService implements IGameSessionService {
             } else if (!isDraw) {
                 stats.setCurrentStreak(stats.getCurrentStreak() <= 0 ? stats.getCurrentStreak() - 1 : -1);
             } else {
-                stats.setCurrentStreak(0); // Reset streak on draw
+                stats.setCurrentStreak(0);
             }
 
-            // Update RPG-specific stats
             if (isRPGMode) {
                 int currentRound = 0;
                 if (session.getRpgGameStateId() != null) {
@@ -340,25 +363,18 @@ public class GameSessionService implements IGameSessionService {
                 stats.setHighestRPGRound(Math.max(stats.getHighestRPGRound(), currentRound));
             }
 
-            // Update win rate
             stats.setWinRate((double) stats.getTotalGamesWon() / stats.getTotalGamesPlayed() * 100);
-
-            // Update last game played
             stats.setLastGamePlayed(LocalDateTime.now());
 
-            // Update user points (e.g., +10 for win, +5 for draw, +0 for loss)
             int pointsToAdd = isWinner ? 10 : (isDraw ? 5 : 0);
             userService.updateUserPoints(playerId, pointsToAdd);
 
-            // Update profile fields
             profile.setGamesPlayed(stats.getTotalGamesPlayed());
             profile.setGamesWon(stats.getTotalGamesWon());
             profile.setLastUpdated(LocalDateTime.now());
 
-            // Save the updated profile
             playerProfileRepository.save(profile);
 
-            // Update the user's gameStats reference
             userService.findById(playerId).ifPresent(user -> {
                 user.setGameStats(finalStats);
                 userRepository.save(user);
@@ -466,8 +482,6 @@ public class GameSessionService implements IGameSessionService {
 
     private Piece[][] initializeStandardChessBoard() {
         Piece[][] board = new Piece[8][8];
-
-        // Black pieces (row 0)
         board[0][0] = new Piece(PieceType.ROOK, PieceColor.black);
         board[0][1] = new Piece(PieceType.KNIGHT, PieceColor.black);
         board[0][2] = new Piece(PieceType.BISHOP, PieceColor.black);
@@ -477,24 +491,20 @@ public class GameSessionService implements IGameSessionService {
         board[0][6] = new Piece(PieceType.KNIGHT, PieceColor.black);
         board[0][7] = new Piece(PieceType.ROOK, PieceColor.black);
 
-        // Black pawns (row 1)
         for (int col = 0; col < 8; col++) {
             board[1][col] = new Piece(PieceType.PAWN, PieceColor.black);
         }
 
-        // Empty rows (rows 2–5)
         for (int row = 2; row < 6; row++) {
             for (int col = 0; col < 8; col++) {
                 board[row][col] = null;
             }
         }
 
-        // White pawns (row 6)
         for (int col = 0; col < 8; col++) {
             board[6][col] = new Piece(PieceType.PAWN, PieceColor.white);
         }
 
-        // White pieces (row 7)
         board[7][0] = new Piece(PieceType.ROOK, PieceColor.white);
         board[7][1] = new Piece(PieceType.KNIGHT, PieceColor.white);
         board[7][2] = new Piece(PieceType.BISHOP, PieceColor.white);
@@ -511,8 +521,6 @@ public class GameSessionService implements IGameSessionService {
         return UUID.randomUUID().toString().substring(0, 8).toUpperCase();
     }
 
-
-
     @Override
     public GameSession getGameSessionByGameStateId(String gameStateId) {
         for (GameSession gameSession : gameSessionRepository.findAll()) {
@@ -525,10 +533,9 @@ public class GameSessionService implements IGameSessionService {
         return null;
     }
 
-
+    @Override
     @Transactional
     public void saveSession(GameSession session) {
         gameSessionRepository.save(session);
     }
-
 }
