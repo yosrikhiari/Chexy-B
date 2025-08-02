@@ -40,6 +40,7 @@ public class GameSessionService implements IGameSessionService {
     private final UserRepository userRepository;
     private final RPGGameStateRepository rpgGameStateRepository;
     private final TimerWebSocketController timerWebSocketController;
+    private final PointsAttributionService pointsAttributionService;
 
     @Autowired
     public GameSessionService(GameSessionRepository gameSessionRepository,
@@ -49,7 +50,8 @@ public class GameSessionService implements IGameSessionService {
                               PlayerProfileRepository playerProfileRepository,
                               UserRepository userRepository,
                               RPGGameStateRepository rpgGameStateRepository,
-                              TimerWebSocketController timerWebSocketController) {
+                              TimerWebSocketController timerWebSocketController,
+                              PointsAttributionService pointsAttributionService) {
         this.gameSessionRepository = gameSessionRepository;
         this.userService = userService;
         this.gameHistoryService = gameHistoryService;
@@ -57,6 +59,7 @@ public class GameSessionService implements IGameSessionService {
         this.userRepository = userRepository;
         this.rpgGameStateRepository = rpgGameStateRepository;
         this.timerWebSocketController = timerWebSocketController;
+        this.pointsAttributionService = pointsAttributionService;
     }
 
     @Override
@@ -232,6 +235,19 @@ public class GameSessionService implements IGameSessionService {
         session.setActive(false);
         GameResult result = buildGameResult(session, isDraw ? null : winnerId, isDraw, tieOption);
         updatePlayerStats(session, winnerId, isDraw, result);
+
+        if (session.isRankedMatch()) {
+            List<String> playerIds = session.getPlayerIds();
+            String whitePlayerId = session.getWhitePlayer().getUserId();
+            String blackPlayerId = session.getBlackPlayer().isEmpty() ? null : session.getBlackPlayer().get(0).getUserId();
+            if (!isDraw && winnerId != null && blackPlayerId != null && !"BOT".equals(blackPlayerId)) {
+                String loserId = winnerId.equals(whitePlayerId) ? blackPlayerId : whitePlayerId;
+                pointsAttributionService.updatePoints(winnerId, loserId, false);
+            } else if (isDraw && blackPlayerId != null && !"BOT".equals(blackPlayerId)) {
+                pointsAttributionService.updatePoints(whitePlayerId, blackPlayerId, true);
+            }
+        }
+
         gameHistoryService.updateGameHistory(session.getGameHistoryId(), result, LocalDateTime.now());
         GameSession updatedSession = gameSessionRepository.save(session);
         timerWebSocketController.broadcastTimerUpdate(gameId, updatedSession);
@@ -239,7 +255,7 @@ public class GameSessionService implements IGameSessionService {
         return updatedSession;
     }
 
-    @Scheduled(fixedRate = 1000) // Every second
+    @Scheduled(fixedRate = 1000)
     public void updateTimers() {
         List<GameSession> activeSessions = gameSessionRepository.findByStatus(GameStatus.ACTIVE);
         for (GameSession session : activeSessions) {
@@ -365,9 +381,6 @@ public class GameSessionService implements IGameSessionService {
 
             stats.setWinRate((double) stats.getTotalGamesWon() / stats.getTotalGamesPlayed() * 100);
             stats.setLastGamePlayed(LocalDateTime.now());
-
-            int pointsToAdd = isWinner ? 10 : (isDraw ? 5 : 0);
-            userService.updateUserPoints(playerId, pointsToAdd);
 
             profile.setGamesPlayed(stats.getTotalGamesPlayed());
             profile.setGamesWon(stats.getTotalGamesWon());
