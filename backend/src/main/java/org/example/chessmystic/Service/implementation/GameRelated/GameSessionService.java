@@ -362,12 +362,9 @@ public class GameSessionService implements IGameSessionService {
                 }
                 stats.setHighestRPGRound(Math.max(stats.getHighestRPGRound(), currentRound));
             }
-
             stats.setWinRate((double) stats.getTotalGamesWon() / stats.getTotalGamesPlayed() * 100);
             stats.setLastGamePlayed(LocalDateTime.now());
 
-            int pointsToAdd = isWinner ? 10 : (isDraw ? 5 : 0);
-            userService.updateUserPoints(playerId, pointsToAdd);
 
             profile.setGamesPlayed(stats.getTotalGamesPlayed());
             profile.setGamesWon(stats.getTotalGamesWon());
@@ -379,6 +376,8 @@ public class GameSessionService implements IGameSessionService {
                 user.setGameStats(finalStats);
                 userRepository.save(user);
             });
+// Points will be calculated and updated by frontend based on streak
+            logger.info("Processing player: {}, isWinner: {}, isDraw: {}, ranked: {} - Points will be calculated by frontend", playerId, isWinner, isDraw, session.isRankedMatch());
         }
     }
 

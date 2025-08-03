@@ -93,8 +93,4 @@ public class GameHistoryService implements IGameHistoryService {
     public List<GameHistory> findRecentGames(LocalDateTime since) {
         return gameHistoryRepository.findByStartTimeAfter(since);
     }
-
-
-
-
 }
