@@ -20,5 +20,5 @@ public class PlayerGameStats {
     private int totalRPGScore;
     private LocalDateTime lastGamePlayed;
     private double winRate;
-    private int currentStreak; // Win/loss streak
+    private int currentStreak;
 }
