@@ -230,6 +230,13 @@ public class GameSessionService implements IGameSessionService {
         session.setStatus(GameStatus.COMPLETED);
         session.setLastActivity(LocalDateTime.now());
         session.setActive(false);
+
+        // Deactivate timers to prevent further updates
+        if (session.getTimers() != null) {
+            session.getTimers().getWhite().setActive(false);
+            session.getTimers().getBlack().setActive(false);
+        }
+
         GameResult result = buildGameResult(session, isDraw ? null : winnerId, isDraw, tieOption);
         updatePlayerStats(session, winnerId, isDraw, result);
         gameHistoryService.updateGameHistory(session.getGameHistoryId(), result, LocalDateTime.now());

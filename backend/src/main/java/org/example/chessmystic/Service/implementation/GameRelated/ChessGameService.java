@@ -152,8 +152,18 @@ public class ChessGameService implements IChessGameService {
             }
         }
         return !hasNonKingPiece || (whiteMaterial <= 3 && blackMaterial <= 3); // King vs King or minor piece scenarios
+    }
 
-        // TODO: Add checks for threefold repetition, fifty-move rule
+    /**
+     * Check for threefold repetition and fifty-move rule
+     * @param gameSessionId The game session ID
+     * @param currentTurn The current player's turn
+     * @return true if the game is a draw due to repetition or fifty-move rule
+     */
+    private boolean isDrawByRepetitionOrFiftyMove(String gameSessionId, PieceColor currentTurn) {
+        // TODO: Implement threefold repetition check using move history
+        // TODO: Implement fifty-move rule check (50 moves without capture or pawn advance)
+        return false;
     }
 
 
