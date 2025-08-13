@@ -12,12 +12,13 @@ import java.util.Optional;
 
 @Repository
 public interface GameSessionRepository extends MongoRepository<GameSession, String> {
+    @Query("{ $or: [ {'whitePlayer.userId': ?0}, {'blackPlayer.userId': ?0} ] }")
     List<GameSession> findByPlayerIdsContaining(String playerId);
     List<GameSession> findByStatus(GameStatus status);
     List<GameSession> findByGameMode(GameMode gameMode);
     List<GameSession> findByIsActiveTrue();
 
-    @Query("{'playerIds': {$in: [?0]}, 'status': {$in: [?1]}}")
+    @Query("{ $and: [ { $or: [ {'whitePlayer.userId': ?0}, {'blackPlayer.userId': ?0} ] }, { 'status': { $in: ?1 } } ] }")
     List<GameSession> findActiveGamesByPlayerId(String playerId, List<GameStatus> activeStatuses);
 
     @Query("{'createdAt': {$gte: ?0, $lte: ?1}}")
@@ -25,7 +26,7 @@ public interface GameSessionRepository extends MongoRepository<GameSession, Stri
 
     Optional<GameSession> findByInviteCode(String inviteCode);
 
-    @Query("{ 'enhancedGameStateId': ?0, 'playerIds': { $in: [?1] } }")
+    @Query("{ 'enhancedGameStateId': ?0, $or: [ {'whitePlayer.userId': ?1}, {'blackPlayer.userId': ?1} ] }")
     GameSession findByEnhancedGameStateIdAndPlayerId(String enhancedGameStateId, String playerId);
 
     GameSession findByEnhancedGameStateId(String enhancedGameStateId);

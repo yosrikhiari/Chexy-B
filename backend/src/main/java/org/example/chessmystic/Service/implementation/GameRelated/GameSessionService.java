@@ -169,7 +169,6 @@ public class GameSessionService implements IGameSessionService {
             session.setBlackPlayer(new ArrayList<>());
         }
         session.getBlackPlayer().add(playerInfo);
-        session.getPlayerIds().add(playerId);
         session.getPlayerLastSeen().put(playerId, LocalDateTime.now());
 
         return gameSessionRepository.save(session);

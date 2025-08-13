@@ -219,7 +219,7 @@ public class RPGGameService implements IRPGGameService {
                 .gameId(UUID.randomUUID().toString())
                 .gameSessionId(gameSessionId)
                 .playerArmy(new ArrayList<>())
-                .EnemyArmyConfig(firstEnemyArmy)
+                .enemyArmyConfig(firstEnemyArmy)
                 .activeModifiers(new ArrayList<>())
                 .activeBoardModifiers(new ArrayList<>())
                 .activeCapacityModifiers(new ArrayList<>())

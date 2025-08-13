@@ -61,6 +61,6 @@ public class RPGGameState {
     private List<String> actionHistoryIds; // Links to PlayerAction records
     private String shopStateId; // Link to current shop state if applicable
 
-    private EnemyArmyConfig EnemyArmyConfig; // just so you know what to fight every round
+    private EnemyArmyConfig enemyArmyConfig; // camelCase for consistency
 
 }

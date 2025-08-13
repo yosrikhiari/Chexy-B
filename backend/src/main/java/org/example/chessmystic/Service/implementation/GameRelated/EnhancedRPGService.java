@@ -145,7 +145,8 @@ public class EnhancedRPGService implements IEnhancedRPGService {
         if (gamesessionrepository.findByEnhancedGameStateIdAndPlayerId(gameState.getGameId(), playerId) == null) {
             throw new RuntimeException("Player " + playerId + " is not part of this game");
         }
-        if (!gamesessionrepository.findByEnhancedGameStateIdAndPlayerId(gameState.getGameId(), playerId).getCurrentPlayer().equals(playerId)) {
+        var session = gamesessionrepository.findByEnhancedGameStateIdAndPlayerId(gameState.getGameId(), playerId);
+        if (session == null || session.getCurrentPlayerId() == null || !session.getCurrentPlayerId().equals(playerId)) {
             throw new RuntimeException("Not your turn");
         }
     }

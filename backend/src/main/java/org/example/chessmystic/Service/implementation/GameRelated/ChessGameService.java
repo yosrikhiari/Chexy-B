@@ -1,5 +1,6 @@
 package org.example.chessmystic.Service.implementation.GameRelated;
 
+import org.example.chessmystic.Models.Interactions.PlayerAction;
 import org.example.chessmystic.Models.chess.BoardPosition;
 import org.example.chessmystic.Models.GameStateandFlow.GameState;
 import org.example.chessmystic.Models.chess.Piece;
@@ -8,9 +9,7 @@ import org.example.chessmystic.Models.chess.PieceColor;
 import org.example.chessmystic.Models.chess.PieceType;
 import org.example.chessmystic.Models.GameStateandFlow.GameMode;
 import org.example.chessmystic.Models.UIUX.TieResolutionOption;
-import org.example.chessmystic.Repository.GameSessionRepository;
-import org.example.chessmystic.Repository.GameStateRepository;
-import org.example.chessmystic.Repository.RPGGameStateRepository;
+import org.example.chessmystic.Repository.*;
 import org.example.chessmystic.Service.interfaces.GameRelated.IChessGameService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Random;
 
 @Service
@@ -26,16 +26,20 @@ public class ChessGameService implements IChessGameService {
 
 
     private final GameSessionRepository gameSessionRepository;
+    private final PlayerActionRepository playeractionRepository;
     private final TieResolutionOptionService tieResolutionOptionService;
+    private final GameHistoryRepository gameHistoryRepository;
 
     @Autowired
     public ChessGameService(GameSessionRepository gameSessionRepository,
                             GameStateRepository gameStateRepository,
-                            RPGGameStateRepository rpgGameStateRepository,
-                            TieResolutionOptionService tieResolutionOptionService) {
+                            RPGGameStateRepository rpgGameStateRepository, PlayerActionRepository playeractionRepository,
+                            TieResolutionOptionService tieResolutionOptionService, GameHistoryRepository gameHistoryRepository) {
         // Remove playerActionService
         this.gameSessionRepository = gameSessionRepository;
+        this.playeractionRepository = playeractionRepository;
         this.tieResolutionOptionService = tieResolutionOptionService;
+        this.gameHistoryRepository = gameHistoryRepository;
     }
 
 
@@ -163,6 +167,32 @@ public class ChessGameService implements IChessGameService {
     private boolean isDrawByRepetitionOrFiftyMove(String gameSessionId, PieceColor currentTurn) {
         // TODO: Implement threefold repetition check using move history
         // TODO: Implement fifty-move rule check (50 moves without capture or pawn advance)
+        var history = gameHistoryRepository.findByGameSessionId(gameSessionId).orElseThrow(() -> new IllegalArgumentException("Game Historu not found"));
+        if (history.getPlayerActionIds().stream().count() == 100){
+            isDraw(gameSessionId, currentTurn);
+        }
+        List<PlayerAction> actionmade = playeractionRepository.findAllById(history.getPlayerActionIds());
+        List<PlayerAction> whiteplayerAction = actionmade.stream().filter(i -> actionmade.indexOf(i) % 2 == 0).toList();
+        List<PlayerAction> blackplayerAction = actionmade.stream().filter(i -> actionmade.indexOf(i) % 2 != 0).toList();
+        for (int i = 2; i < whiteplayerAction.size() - 2 ; i++) {
+            PlayerAction curr = whiteplayerAction.get(i);
+            PlayerAction last2 = whiteplayerAction.get(i-2);
+            PlayerAction next2 = whiteplayerAction.get(i+2);
+
+            if (curr.equals(last2) && next2.equals(curr)) {
+                if ((curr.getToY() == last2.getToY() && curr.getToX() == last2.getToX() && (curr.getToY() == next2.getToY() && curr.getToX() == next2.getToX()))) {
+                    PlayerAction last1 = whiteplayerAction.get(i-1);
+                    PlayerAction next1 = whiteplayerAction.get(i+1);
+                    if ((last2.getToY()==last1.getFromY() && last2.getToX()==last1.getFromX()) &&
+                            (last1.getToY() == curr.getFromY() && last1.getToX() == curr.getFromX())
+                            && (curr.getToY() == next1.getFromY() && curr.getToX() == next1.getFromX())) {
+                        isDraw(gameSessionId, currentTurn);
+                    }
+                }
+            }
+        }
+
+
         return false;
     }
 

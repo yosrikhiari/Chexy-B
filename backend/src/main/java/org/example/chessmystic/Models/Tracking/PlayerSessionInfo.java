@@ -1,6 +1,7 @@
 package org.example.chessmystic.Models.Tracking;
 
 import lombok.*;
+import lombok.Builder.Default;
 import org.example.chessmystic.Models.Stats.PlayerGameStats;
 import org.springframework.data.annotation.Id;
 
@@ -24,5 +25,6 @@ public class PlayerSessionInfo {
     private LocalDateTime lastSeen;
     private PlayerGameStats currentStats;
 
-    private boolean CurrentTurn = false;
+    @Default
+    private boolean currentTurn = false;
 }
