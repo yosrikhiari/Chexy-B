@@ -45,7 +45,8 @@ public class SecurityConfig implements WebMvcConfigurer {
                 "http://localhost:8080",
                 "http://keycloak:8080",
                 "http://localhost:4200",
-                "http://localhost:8082"
+                "http://localhost:8082",
+                "http://localhost:8083"
         ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
