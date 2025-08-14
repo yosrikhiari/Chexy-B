@@ -1,6 +1,7 @@
 package org.example.chessmystic.Service.interfaces.GameRelated;
 
 import org.example.chessmystic.Models.UserManagement.Friendship;
+import org.example.chessmystic.Models.UserManagement.User;
 
 import java.util.List;
 import java.util.Optional;
@@ -11,7 +12,7 @@ public interface IFriendshipService {
     Friendship declineFriendRequest(String friendshipId);
     void blockUser(String userId, String userToBlockId);
     void unblockUser(String userId, String userToUnblockId);
-    List<Friendship> getFriends(String userId);
+    List<List<User>> getFriends(String userId);
     List<Friendship> getPendingRequests(String userId);
     List<Friendship> getSentRequests(String userId);
     List<Friendship> getBlockedUsers(String userId);

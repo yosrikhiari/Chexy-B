@@ -214,11 +214,15 @@ public class GameSessionService implements IGameSessionService {
         return updatedSession;
     }
 
-    @Transactional
     @Override
+    @Transactional
     public GameSession endGame(String gameId, String winnerId, boolean isDraw, TieResolutionOption tieOption) {
         GameSession session = gameSessionRepository.findById(gameId)
                 .orElseThrow(() -> new RuntimeException("Game session not found with id: " + gameId));
+        
+        logger.info("endGame called for game {} - current status: {}, requested winnerId: {}, isDraw: {}", 
+                   gameId, session.getStatus(), winnerId, isDraw);
+        
         if (session.getStatus() == GameStatus.COMPLETED) {
             logger.info("Game {} already completed, skipping update", gameId);
             return session;
@@ -240,7 +244,8 @@ public class GameSessionService implements IGameSessionService {
         updatePlayerStats(session, winnerId, isDraw, result);
         gameHistoryService.updateGameHistory(session.getGameHistoryId(), result, LocalDateTime.now());
         GameSession updatedSession = gameSessionRepository.save(session);
-        timerWebSocketController.broadcastTimerUpdate(gameId, updatedSession);
+        // Remove timer broadcast for completed games - they don't need timer updates
+        // timerWebSocketController.broadcastTimerUpdate(gameId, updatedSession);
         logger.info("Game ended: {} with status {}", gameId, updatedSession.getStatus());
         return updatedSession;
     }
@@ -248,7 +253,18 @@ public class GameSessionService implements IGameSessionService {
     @Scheduled(fixedRate = 1000) // Every second
     public void updateTimers() {
         List<GameSession> activeSessions = gameSessionRepository.findByStatus(GameStatus.ACTIVE);
+        if (!activeSessions.isEmpty()) {
+            logger.debug("Processing {} active game sessions for timer updates", activeSessions.size());
+        }
+        
         for (GameSession session : activeSessions) {
+            // Double-check that the session is still active before processing
+            if (session.getStatus() != GameStatus.ACTIVE || session.isActive() == false) {
+                logger.debug("Skipping game {} - status: {}, active: {}", 
+                           session.getGameId(), session.getStatus(), session.isActive());
+                continue; // Skip if status changed or game is not active
+            }
+            
             GameTimers timers = session.getTimers();
             GameState gameState = session.getGameState();
             if (timers == null || gameState == null) continue;
@@ -257,12 +273,14 @@ public class GameSessionService implements IGameSessionService {
                 int newTime = timers.getWhite().getTimeLeft() - 1;
                 timers.getWhite().setTimeLeft(Math.max(0, newTime));
                 if (newTime <= 0) {
+                    logger.info("White player timed out in game {}", session.getGameId());
                     endGame(session.getGameId(), session.getBlackPlayer().getFirst().getUserId(), false, null);
                 }
             } else if (gameState.getCurrentTurn() == PieceColor.black && timers.getBlack().isActive()) {
                 int newTime = timers.getBlack().getTimeLeft() - 1;
                 timers.getBlack().setTimeLeft(Math.max(0, newTime));
                 if (newTime <= 0) {
+                    logger.info("Black player timed out in game {}", session.getGameId());
                     endGame(session.getGameId(), session.getWhitePlayer().getUserId(), false, null);
                 }
             }

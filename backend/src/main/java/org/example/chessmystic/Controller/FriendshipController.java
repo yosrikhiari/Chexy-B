@@ -1,6 +1,7 @@
 package org.example.chessmystic.Controller;
 
 import org.example.chessmystic.Models.UserManagement.Friendship;
+import org.example.chessmystic.Models.UserManagement.User;
 import org.example.chessmystic.Service.interfaces.GameRelated.IFriendshipService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -86,9 +87,9 @@ public class FriendshipController {
     }
 
     @GetMapping("/friends/{userId}")
-    public ResponseEntity<List<Friendship>> getFriends(@PathVariable String userId) {
+    public ResponseEntity<List<List<User>>> getFriends(@PathVariable String userId) {
         try {
-            List<Friendship> friends = friendshipService.getFriends(userId);
+            List<List<User>> friends = friendshipService.getFriends(userId);
             return ResponseEntity.ok(friends);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
