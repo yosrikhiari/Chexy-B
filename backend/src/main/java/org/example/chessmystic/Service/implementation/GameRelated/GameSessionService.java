@@ -244,8 +244,6 @@ public class GameSessionService implements IGameSessionService {
         updatePlayerStats(session, winnerId, isDraw, result);
         gameHistoryService.updateGameHistory(session.getGameHistoryId(), result, LocalDateTime.now());
         GameSession updatedSession = gameSessionRepository.save(session);
-        // Remove timer broadcast for completed games - they don't need timer updates
-        // timerWebSocketController.broadcastTimerUpdate(gameId, updatedSession);
         logger.info("Game ended: {} with status {}", gameId, updatedSession.getStatus());
         return updatedSession;
     }
@@ -272,17 +270,11 @@ public class GameSessionService implements IGameSessionService {
             if (gameState.getCurrentTurn() == PieceColor.white && timers.getWhite().isActive()) {
                 int newTime = timers.getWhite().getTimeLeft() - 1;
                 timers.getWhite().setTimeLeft(Math.max(0, newTime));
-                if (newTime <= 0) {
-                    logger.info("White player timed out in game {}", session.getGameId());
-                    endGame(session.getGameId(), session.getBlackPlayer().getFirst().getUserId(), false, null);
-                }
+                // Frontend handles timeout events, backend only updates timer
             } else if (gameState.getCurrentTurn() == PieceColor.black && timers.getBlack().isActive()) {
                 int newTime = timers.getBlack().getTimeLeft() - 1;
                 timers.getBlack().setTimeLeft(Math.max(0, newTime));
-                if (newTime <= 0) {
-                    logger.info("Black player timed out in game {}", session.getGameId());
-                    endGame(session.getGameId(), session.getWhitePlayer().getUserId(), false, null);
-                }
+                // Frontend handles timeout events, backend only updates timer
             }
 
             session.setTimers(timers);
