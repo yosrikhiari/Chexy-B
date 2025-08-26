@@ -2,12 +2,14 @@ package org.example.chessmystic.Config.websocket;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
+import org.springframework.messaging.simp.config.StompBrokerRelayRegistration;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
@@ -23,6 +25,18 @@ import org.springframework.web.socket.config.annotation.WebSocketTransportRegist
 @EnableWebSocketMessageBroker
 public class ChessWebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private static final Logger log = LoggerFactory.getLogger(ChessWebSocketConfig.class);
+
+    @Value("${spring.websocket.stomp.relay.host:localhost}")
+    private String relayHost;
+
+    @Value("${spring.websocket.stomp.relay.port:61613}")
+    private int relayPort;
+
+    @Value("${spring.websocket.stomp.relay.client-login:myuser}")
+    private String relayLogin;
+
+    @Value("${spring.websocket.stomp.relay.client-passcode:mypassword}")
+    private String relayPasscode;
 
     @Bean
     public TaskScheduler chessWebSocketTaskScheduler() {
@@ -42,11 +56,7 @@ public class ChessWebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 .setAllowedOriginPatterns("*")
                 .withSockJS()
                 .setHeartbeatTime(20000) // Reduced to 20 seconds for better connection detection
-                .setDisconnectDelay(3000) // Reduced to 3 seconds for faster cleanup
-                .setClientLibraryUrl("https://cdn.jsdelivr.net/sockjs/1.5.1/sockjs.min.js")
-                .setStreamBytesLimit(128 * 1024) // 128KB
-                .setHttpMessageCacheSize(1000)
-                .setSessionCookieNeeded(false);
+                .setDisconnectDelay(3000); // Reduced to 3 seconds for faster cleanup
     }
 
     @Override
@@ -164,15 +174,19 @@ public class ChessWebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
-        config.enableSimpleBroker("/topic", "/queue")
-                .setHeartbeatValue(new long[]{20000, 20000}) // 20s heartbeat
+        StompBrokerRelayRegistration relay = config.enableStompBrokerRelay("/topic","/queue","/exchange")
+                .setRelayHost(relayHost)
+                .setRelayPort(relayPort)
+                .setClientLogin(relayLogin)
+                .setClientPasscode(relayPasscode)
+                .setSystemLogin(relayLogin)
+                .setSystemPasscode(relayPasscode)
+                .setVirtualHost("/")
+                .setSystemHeartbeatSendInterval(10000)
+                .setSystemHeartbeatReceiveInterval(10000)
                 .setTaskScheduler(chessWebSocketTaskScheduler());
 
         config.setApplicationDestinationPrefixes("/app");
         config.setUserDestinationPrefix("/user");
-
-        // Configure message cache and limits
-        config.setCacheLimit(1024);
-        config.setPreservePublishOrder(true);
     }
 }
