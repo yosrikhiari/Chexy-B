@@ -16,4 +16,5 @@ public class RabbitMQConfig {
     public static final String PLAYER_MOVES_RK = "player.moves.rk";
     public static final String TIMER_UPDATE_RK = "timer.update.rk";
 
+
 }
