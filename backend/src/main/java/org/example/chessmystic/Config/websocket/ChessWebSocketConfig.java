@@ -32,19 +32,19 @@ public class ChessWebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Value("${spring.websocket.stomp.relay.port:61613}")
     private int relayPort;
 
-    @Value("${spring.websocket.stomp.relay.client-login:myuser}")
+    @Value("${spring.websocket.stomp.relay.client-login:guest}")
     private String relayLogin;
 
-    @Value("${spring.websocket.stomp.relay.client-passcode:mypassword}")
+    @Value("${spring.websocket.stomp.relay.client-passcode:guest}")
     private String relayPasscode;
 
     @Bean
     public TaskScheduler chessWebSocketTaskScheduler() {
         ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
-        scheduler.setPoolSize(8); // Increased pool size for better handling
+        scheduler.setPoolSize(8);
         scheduler.setThreadNamePrefix("chess-websocket-");
         scheduler.setWaitForTasksToCompleteOnShutdown(true);
-        scheduler.setAwaitTerminationSeconds(30); // Increased termination time
+        scheduler.setAwaitTerminationSeconds(30);
         scheduler.setRejectedExecutionHandler(new java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy());
         scheduler.initialize();
         return scheduler;
@@ -55,8 +55,8 @@ public class ChessWebSocketConfig implements WebSocketMessageBrokerConfigurer {
         registry.addEndpoint("/chess-websocket")
                 .setAllowedOriginPatterns("*")
                 .withSockJS()
-                .setHeartbeatTime(20000) // Reduced to 20 seconds for better connection detection
-                .setDisconnectDelay(3000); // Reduced to 3 seconds for faster cleanup
+                .setHeartbeatTime(20000)
+                .setDisconnectDelay(3000);
     }
 
     @Override
@@ -72,13 +72,11 @@ public class ChessWebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
                     if (StompCommand.CONNECT.equals(accessor.getCommand())) {
                         log.info("STOMP session connecting: {}", sessionId);
-                        // Initialize session attributes
                         accessor.getSessionAttributes().put("CONNECTED_TIME", System.currentTimeMillis());
                         accessor.getSessionAttributes().put("ACTIVE", true);
 
                     } else if (StompCommand.DISCONNECT.equals(accessor.getCommand())) {
                         log.info("STOMP session disconnecting: {}", sessionId);
-                        // Mark session as disconnecting to prevent message sending
                         accessor.getSessionAttributes().put("DISCONNECTING", true);
                         accessor.getSessionAttributes().put("ACTIVE", false);
 
@@ -105,7 +103,6 @@ public class ChessWebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
                     } else if (StompCommand.DISCONNECT.equals(accessor.getCommand())) {
                         log.info("STOMP session disconnect completed: {}", sessionId);
-                        // Final cleanup
                         accessor.getSessionAttributes().put("COMPLETED", true);
                     }
                 }
@@ -125,7 +122,6 @@ public class ChessWebSocketConfig implements WebSocketMessageBrokerConfigurer {
             }
         });
 
-        // Enhanced thread pool configuration
         registration.taskExecutor()
                 .corePoolSize(10)
                 .maxPoolSize(20)
@@ -142,21 +138,19 @@ public class ChessWebSocketConfig implements WebSocketMessageBrokerConfigurer {
                         MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
 
                 if (accessor != null && accessor.getSessionAttributes() != null) {
-                    // Check if session is still active before sending
                     Boolean disconnecting = (Boolean) accessor.getSessionAttributes().get("DISCONNECTING");
                     Boolean completed = (Boolean) accessor.getSessionAttributes().get("COMPLETED");
 
                     if (Boolean.TRUE.equals(disconnecting) || Boolean.TRUE.equals(completed)) {
                         log.debug("Blocking message to disconnecting/completed session: {}",
                                 accessor.getSessionId());
-                        return null; // Block the message
+                        return null;
                     }
                 }
                 return message;
             }
         });
 
-        // Enhanced thread pool configuration for outbound
         registration.taskExecutor()
                 .corePoolSize(10)
                 .maxPoolSize(20)
@@ -166,27 +160,37 @@ public class ChessWebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureWebSocketTransport(WebSocketTransportRegistration registry) {
-        registry.setMessageSizeLimit(256 * 1024) // Increased to 256KB
-                .setSendTimeLimit(20 * 1000) // Reduced to 20 seconds
-                .setSendBufferSizeLimit(2 * 512 * 1024) // 1MB buffer
-                .setTimeToFirstMessage(30 * 1000); // Reduced to 30 seconds
+        registry.setMessageSizeLimit(256 * 1024)
+                .setSendTimeLimit(20 * 1000)
+                .setSendBufferSizeLimit(2 * 512 * 1024)
+                .setTimeToFirstMessage(30 * 1000);
     }
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
-        StompBrokerRelayRegistration relay = config.enableStompBrokerRelay("/topic","/queue","/exchange")
-                .setRelayHost(relayHost)
-                .setRelayPort(relayPort)
-                .setClientLogin(relayLogin)
-                .setClientPasscode(relayPasscode)
-                .setSystemLogin(relayLogin)
-                .setSystemPasscode(relayPasscode)
-                .setVirtualHost("/")
-                .setSystemHeartbeatSendInterval(10000)
-                .setSystemHeartbeatReceiveInterval(10000)
-                .setTaskScheduler(chessWebSocketTaskScheduler());
+        try {
+            StompBrokerRelayRegistration relay = config.enableStompBrokerRelay("/topic", "/queue", "/exchange")
+                    .setRelayHost(relayHost)
+                    .setRelayPort(relayPort)
+                    .setClientLogin(relayLogin)
+                    .setClientPasscode(relayPasscode)
+                    .setSystemLogin(relayLogin)
+                    .setSystemPasscode(relayPasscode)
+                    .setVirtualHost("/")
+                    .setSystemHeartbeatSendInterval(10000)
+                    .setSystemHeartbeatReceiveInterval(10000)
+                    .setTaskScheduler(chessWebSocketTaskScheduler())
+                    .setAutoStartup(true);
 
-        config.setApplicationDestinationPrefixes("/app");
-        config.setUserDestinationPrefix("/user");
+            config.setApplicationDestinationPrefixes("/app");
+            config.setUserDestinationPrefix("/user");
+
+        } catch (Exception e) {
+            log.error("Failed to configure STOMP broker relay, falling back to simple broker: {}", e.getMessage());
+            // Fallback to simple broker if STOMP relay fails
+            config.enableSimpleBroker("/topic", "/queue");
+            config.setApplicationDestinationPrefixes("/app");
+            config.setUserDestinationPrefix("/user");
+        }
     }
 }
