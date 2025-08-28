@@ -23,6 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,6 +41,7 @@ public class GameSessionService implements IGameSessionService {
     private final UserRepository userRepository;
     private final RPGGameStateRepository rpgGameStateRepository;
     private final TimerWebSocketController timerWebSocketController;
+    private final SimpMessagingTemplate messagingTemplate;
 
     @Autowired
     public GameSessionService(GameSessionRepository gameSessionRepository,
@@ -49,7 +51,8 @@ public class GameSessionService implements IGameSessionService {
                               PlayerProfileRepository playerProfileRepository,
                               UserRepository userRepository,
                               RPGGameStateRepository rpgGameStateRepository,
-                              TimerWebSocketController timerWebSocketController) {
+                              TimerWebSocketController timerWebSocketController,
+                              SimpMessagingTemplate messagingTemplate) {
         this.gameSessionRepository = gameSessionRepository;
         this.userService = userService;
         this.gameHistoryService = gameHistoryService;
@@ -57,6 +60,7 @@ public class GameSessionService implements IGameSessionService {
         this.userRepository = userRepository;
         this.rpgGameStateRepository = rpgGameStateRepository;
         this.timerWebSocketController = timerWebSocketController;
+        this.messagingTemplate = messagingTemplate;
     }
 
     @Override
@@ -245,6 +249,19 @@ public class GameSessionService implements IGameSessionService {
         gameHistoryService.updateGameHistory(session.getGameHistoryId(), result, LocalDateTime.now());
         GameSession updatedSession = gameSessionRepository.save(session);
         logger.info("Game ended: {} with status {}", gameId, updatedSession.getStatus());
+
+        // Notify all subscribers that this game has ended so clients can close/unsubscribe
+        try {
+            messagingTemplate.convertAndSend("/exchange/amq.topic/game." + gameId + ".ended",
+                    Map.of(
+                            "gameId", gameId,
+                            "status", updatedSession.getStatus().name(),
+                            "winnerId", winnerId,
+                            "isDraw", isDraw
+                    ));
+        } catch (Exception ex) {
+            logger.warn("Failed to broadcast game end event for {}: {}", gameId, ex.getMessage());
+        }
         return updatedSession;
     }
 

@@ -46,7 +46,7 @@ public class MatchmakingService {
             queue.add(player);
             playersInQueue.put(userId, player);
             logger.info("Player {} joined queue with {} points. Queue size: {}", userId, points, queue.size());
-            messagingTemplate.convertAndSend("/topic/matchmaking/status",
+            messagingTemplate.convertAndSend("/exchange/amq.topic/matchmaking.status",
                     Map.of("playersInQueue", queue.size()));
         }
     }
@@ -63,7 +63,7 @@ public class MatchmakingService {
             if (removed) {
                 playersInQueue.remove(userId);
                 logger.info("Player {} left queue. Queue size: {}", userId, queue.size());
-                messagingTemplate.convertAndSend("/topic/matchmaking/status",
+                messagingTemplate.convertAndSend("/exchange/amq.topic/matchmaking.status",
                         Map.of("playersInQueue", queue.size()));
             }
         }
@@ -103,7 +103,7 @@ public class MatchmakingService {
                     sortedQueue.remove(player2);
 
                     // Update queue status
-                    messagingTemplate.convertAndSend("/topic/matchmaking/status",
+                    messagingTemplate.convertAndSend("/exchange/amq.topic/matchmaking.status",
                             Map.of("playersInQueue", queue.size()));
                 }
             }
@@ -144,14 +144,14 @@ public class MatchmakingService {
                 "opponentId", player2.userId,
                 "opponentPoints", player2.points
         );
-        messagingTemplate.convertAndSend("/queue/matchmaking/matchFound/" + player1.userId, matchData1);
+        messagingTemplate.convertAndSend("/queue/matchmaking.matchFound." + player1.userId, matchData1);
 
         Map<String, Object> matchData2 = Map.of(
                 "matchId", matchId,
                 "opponentId", player1.userId,
                 "opponentPoints", player1.points
         );
-        messagingTemplate.convertAndSend("/queue/matchmaking/matchFound/" + player2.userId, matchData2);
+        messagingTemplate.convertAndSend("/queue/matchmaking.matchFound." + player2.userId, matchData2);
 
         // Set up timeout timer
         Timer timer = new Timer();
@@ -220,8 +220,8 @@ public class MatchmakingService {
                 "leftQueue", false
         );
 
-        messagingTemplate.convertAndSend("/queue/matchmaking/matchCancelled/" + decliningUserId, decliningUserData);
-        messagingTemplate.convertAndSend("/queue/matchmaking/matchCancelled/" + opponentId, opponentData);
+        messagingTemplate.convertAndSend("/queue/matchmaking.matchCancelled." + decliningUserId, decliningUserData);
+        messagingTemplate.convertAndSend("/queue/matchmaking.matchCancelled." + opponentId, opponentData);
 
         // Re-add only the non-declining player to queue
         synchronized (queueLock) {
@@ -240,7 +240,7 @@ public class MatchmakingService {
             }
 
             // Update queue status for everyone
-            messagingTemplate.convertAndSend("/topic/matchmaking/status",
+            messagingTemplate.convertAndSend("/exchange/amq.topic/matchmaking.status",
                     Map.of("playersInQueue", queue.size()));
         }
 
@@ -266,14 +266,14 @@ public class MatchmakingService {
 
         // Notify both players
         Map<String, Object> cancellationData = Map.of("message", reason);
-        messagingTemplate.convertAndSend("/queue/matchmaking/matchCancelled/" + pendingMatch.player1.userId, cancellationData);
-        messagingTemplate.convertAndSend("/queue/matchmaking/matchCancelled/" + pendingMatch.player2.userId, cancellationData);
+        messagingTemplate.convertAndSend("/queue/matchmaking.matchCancelled." + pendingMatch.player1.userId, cancellationData);
+        messagingTemplate.convertAndSend("/queue/matchmaking.matchCancelled." + pendingMatch.player2.userId, cancellationData);
 
         // Re-add players to queue
         synchronized (queueLock) {
             queue.add(pendingMatch.player1);
             queue.add(pendingMatch.player2);
-            messagingTemplate.convertAndSend("/topic/matchmaking/status",
+            messagingTemplate.convertAndSend("/exchange/amq.topic/matchmaking.status",
                     Map.of("playersInQueue", queue.size()));
         }
 
@@ -301,14 +301,14 @@ public class MatchmakingService {
                     "opponentId", blackPlayer.userId,
                     "color", "white"
             );
-            messagingTemplate.convertAndSend("/queue/matchmaking/gameReady/" + whitePlayer.userId, gameData1);
+            messagingTemplate.convertAndSend("/queue/matchmaking.gameReady." + whitePlayer.userId, gameData1);
 
             Map<String, Object> gameData2 = Map.of(
                     "gameId", session.getGameId(),
                     "opponentId", whitePlayer.userId,
                     "color", "black"
             );
-            messagingTemplate.convertAndSend("/queue/matchmaking/gameReady/" + blackPlayer.userId, gameData2);
+            messagingTemplate.convertAndSend("/queue/matchmaking.gameReady." + blackPlayer.userId, gameData2);
 
             logger.info("Game session {} created for {} (white) vs {} (black)",
                     session.getGameId(), whitePlayer.userId, blackPlayer.userId);
@@ -318,8 +318,8 @@ public class MatchmakingService {
 
             // Notify players of error
             Map<String, Object> errorData = Map.of("message", "Failed to create game session");
-            messagingTemplate.convertAndSend("/queue/matchmaking/error/" + player1.userId, errorData);
-            messagingTemplate.convertAndSend("/queue/matchmaking/error/" + player2.userId, errorData);
+            messagingTemplate.convertAndSend("/queue/matchmaking.error." + player1.userId, errorData);
+            messagingTemplate.convertAndSend("/queue/matchmaking.error." + player2.userId, errorData);
         }
     }
 

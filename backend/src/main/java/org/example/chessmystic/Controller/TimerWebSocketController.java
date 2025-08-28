@@ -22,7 +22,8 @@ public class TimerWebSocketController {
     public void broadcastTimerUpdate(String gameId, GameSession session) {
         // Only send timer updates for active games
         if (session.getStatus() == GameStatus.ACTIVE && session.isActive()) {
-            messagingTemplate.convertAndSend("/topic/game/" + gameId + "/timer", session.getTimers());
+            // Use explicit amq.topic and dot-separated routing key to be RabbitMQ STOMP compatible
+            messagingTemplate.convertAndSend("/exchange/amq.topic/game." + gameId + ".timer", session.getTimers());
         } else {
             // Log when trying to send timer updates for non-active games
             System.out.println("Skipping timer update for game " + gameId + " - status: " + session.getStatus() + ", active: " + session.isActive());

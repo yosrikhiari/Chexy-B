@@ -9,7 +9,6 @@ import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
-import org.springframework.messaging.simp.config.StompBrokerRelayRegistration;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
@@ -69,6 +68,39 @@ public class ChessWebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
                 if (accessor != null) {
                     String sessionId = accessor.getSessionId();
+
+                    // Normalize destinations for RabbitMQ STOMP compatibility
+                    // - RabbitMQ STOMP does NOT allow nested path segments after /queue
+                    //   e.g., "/queue/chat/USER_ID" must be rewritten to "/queue/chat.USER_ID"
+                    // - Prefer using the explicit exchange form for topics: 
+                    //   "/topic/a/b" -> "/exchange/amq.topic/a.b"
+                    if (accessor.getDestination() != null) {
+                        String original = accessor.getDestination();
+                        String updated = original;
+
+                        // Do not touch user-destinations handled by Spring itself
+                        boolean isUserDest = original.startsWith("/user/");
+
+                        if (!isUserDest) {
+                            if (original.startsWith("/queue/")) {
+                                // Replace additional slashes after the initial prefix with dots
+                                // Keep the leading "/queue/" prefix intact
+                                String tail = original.substring("/queue/".length());
+                                if (tail.contains("/")) {
+                                    updated = "/queue/" + tail.replace('/', '.');
+                                }
+                            } else if (original.startsWith("/topic/")) {
+                                // Map to explicit amq.topic exchange and dot-separated routing key
+                                String tail = original.substring("/topic/".length());
+                                updated = "/exchange/amq.topic/" + tail.replace('/', '.');
+                            }
+                        }
+
+                        if (!updated.equals(original)) {
+                            log.debug("Rewriting STOMP destination for session {}: {} -> {}", sessionId, original, updated);
+                            accessor.setDestination(updated);
+                        }
+                    }
 
                     if (StompCommand.CONNECT.equals(accessor.getCommand())) {
                         log.info("STOMP session connecting: {}", sessionId);
@@ -147,6 +179,30 @@ public class ChessWebSocketConfig implements WebSocketMessageBrokerConfigurer {
                         return null;
                     }
                 }
+
+                // Normalize outbound destinations too for consistency
+                if (accessor != null && accessor.getDestination() != null) {
+                    String original = accessor.getDestination();
+                    String updated = original;
+
+                    boolean isUserDest = original.startsWith("/user/");
+                    if (!isUserDest) {
+                        if (original.startsWith("/queue/")) {
+                            String tail = original.substring("/queue/".length());
+                            if (tail.contains("/")) {
+                                updated = "/queue/" + tail.replace('/', '.');
+                            }
+                        } else if (original.startsWith("/topic/")) {
+                            String tail = original.substring("/topic/".length());
+                            updated = "/exchange/amq.topic/" + tail.replace('/', '.');
+                        }
+                    }
+
+                    if (!updated.equals(original)) {
+                        log.debug("Rewriting outbound STOMP destination: {} -> {}", original, updated);
+                        accessor.setDestination(updated);
+                    }
+                }
                 return message;
             }
         });
@@ -169,7 +225,7 @@ public class ChessWebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
         try {
-            StompBrokerRelayRegistration relay = config.enableStompBrokerRelay("/topic", "/queue", "/exchange")
+            config.enableStompBrokerRelay("/topic", "/queue", "/exchange")
                     .setRelayHost(relayHost)
                     .setRelayPort(relayPort)
                     .setClientLogin(relayLogin)
