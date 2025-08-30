@@ -69,22 +69,16 @@ public class ChessWebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 if (accessor != null) {
                     String sessionId = accessor.getSessionId();
 
-                    // Normalize destinations for RabbitMQ STOMP compatibility
-                    // - RabbitMQ STOMP does NOT allow nested path segments after /queue
-                    //   e.g., "/queue/chat/USER_ID" must be rewritten to "/queue/chat.USER_ID"
-                    // - Prefer using the explicit exchange form for topics: 
-                    //   "/topic/a/b" -> "/exchange/amq.topic/a.b"
                     if (accessor.getDestination() != null) {
                         String original = accessor.getDestination();
                         String updated = original;
 
                         // Do not touch user-destinations handled by Spring itself
                         boolean isUserDest = original.startsWith("/user/");
+                        boolean isChatDest = original.startsWith("/queue/chat.") || original.startsWith("/queue/chat/*");
 
                         if (!isUserDest) {
                             if (original.startsWith("/queue/")) {
-                                // Replace additional slashes after the initial prefix with dots
-                                // Keep the leading "/queue/" prefix intact
                                 String tail = original.substring("/queue/".length());
                                 if (tail.contains("/")) {
                                     updated = "/queue/" + tail.replace('/', '.');
@@ -186,7 +180,9 @@ public class ChessWebSocketConfig implements WebSocketMessageBrokerConfigurer {
                     String updated = original;
 
                     boolean isUserDest = original.startsWith("/user/");
-                    if (!isUserDest) {
+                    boolean isChatDest = original.startsWith("/queue/chat.") || original.startsWith("/queue/chat/*");
+
+                    if (!isUserDest && !isChatDest) {
                         if (original.startsWith("/queue/")) {
                             String tail = original.substring("/queue/".length());
                             if (tail.contains("/")) {

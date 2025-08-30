@@ -22,11 +22,13 @@ public class RabbitMQConfig {
     public static final String MATCHMAKING_QUEUE = "matchmaking.queue";
     public static final String PLAYER_MOVES = "player.moves";
     public static final String TIMER_UPDATE = "timer.update";
+    public static final String CHAT_QUEUE = "chat.queue";
 
     public static final String GAME_UPDATE_RK = "game.update.rk"; // RK stands for routing key
     public static final String MATCHMAKING_RK = "matchmaking.rk";
     public static final String PLAYER_MOVES_RK = "player.moves.rk";
     public static final String TIMER_UPDATE_RK = "timer.update.rk";
+    public static final String CHAT_RK = "chat.rk";
 
     @Value("${spring.rabbitmq.host:localhost}")
     private String rabbitmqHost;
@@ -139,6 +141,14 @@ public class RabbitMQConfig {
                 .build();
     }
 
+    @Bean
+    public Queue chatQueue() {
+        return QueueBuilder.durable(CHAT_QUEUE)
+                .withArgument("x-dead-letter-exchange", CHESS_DEAD_LETTER_EXCHANGE)
+                .withArgument("x-message-ttl", 600000) // 10 minutes TTL for chat messages
+                .build();
+    }
+
     // The Bindings
 
     @Bean
@@ -164,6 +174,13 @@ public class RabbitMQConfig {
         return BindingBuilder.bind(matchmakingQueue())
                 .to(chessExchange())
                 .with(MATCHMAKING_RK);
+    }
+
+    @Bean
+    public Binding chatBinding() {
+        return BindingBuilder.bind(chatQueue())
+                .to(chessExchange())
+                .with(CHAT_RK); // Remove the wildcard for now to test direct routing
     }
 
 }

@@ -69,4 +69,18 @@ public class RabbitMQMessageService {
             logger.error(playerId,"   ",e.getMessage());
         }
     }
+
+    public void sendChatMessage(String receiverId, Object chatMessage){
+        try{
+            String routingKey = RabbitMQConfig.CHAT_RK + "." + receiverId;
+            rabbitTemplate.convertAndSend(
+                    RabbitMQConfig.CHESS_EXCHANGE,
+                    routingKey,
+                    chatMessage);
+            logger.debug("Chat message sent for receiver: {}", receiverId);
+        }
+        catch (Exception e) {
+            logger.error("Error sending chat message to {}: {}", receiverId, e.getMessage());
+        }
+    }
 }

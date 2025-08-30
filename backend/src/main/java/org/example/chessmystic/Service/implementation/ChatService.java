@@ -1,4 +1,4 @@
-package org.example.chessmystic.Service;
+package org.example.chessmystic.Service.implementation;
 
 import org.example.chessmystic.Models.ChatMessage;
 import org.example.chessmystic.Repository.ChatMessageRepository;
