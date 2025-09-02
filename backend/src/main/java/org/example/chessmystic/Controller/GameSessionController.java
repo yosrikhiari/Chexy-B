@@ -265,7 +265,7 @@ public class GameSessionController {
         }
     }
 
-    @PostMapping("/{gameId}/Mode")
+    @PostMapping("/{gameId}/mode/off")
     public void offSpectators(@PathVariable String gameId) {
         try{
             gameSessionService.offSpectatorMode(gameId);
@@ -273,7 +273,7 @@ public class GameSessionController {
             System.out.println(e);
         }
     }
-    @PostMapping("/{gameId}/Mode")
+    @PostMapping("/{gameId}/mode/on")
     public void onSpectators(@PathVariable String gameId) {
         try{
             gameSessionService.onSpectatorMode(gameId);

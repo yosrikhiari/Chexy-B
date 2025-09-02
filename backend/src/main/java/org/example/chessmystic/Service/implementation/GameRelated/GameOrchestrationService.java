@@ -3,6 +3,7 @@ package org.example.chessmystic.Service.implementation.GameRelated;
 import org.example.chessmystic.Models.GameStateandFlow.GameState;
 import org.example.chessmystic.Models.GameStateandFlow.GameTimers;
 import org.example.chessmystic.Models.Interactions.ActionType;
+import org.example.chessmystic.Models.Tracking.GameSession;
 import org.example.chessmystic.Models.chess.BoardPosition;
 import org.example.chessmystic.Models.chess.Piece;
 import org.example.chessmystic.Models.chess.PieceColor;
@@ -10,6 +11,9 @@ import org.example.chessmystic.Controller.TimerWebSocketController;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 public class GameOrchestrationService {
@@ -122,6 +126,9 @@ public class GameOrchestrationService {
     private boolean isValidPosition(int row, int col) {
         return row >= 0 && row < 8 && col >= 0 && col < 8;
     }
+
+
+
 
     private void printBoard(Piece[][] board) {
         System.out.println("Board state:");
