@@ -25,6 +25,9 @@ import org.springframework.web.socket.config.annotation.WebSocketTransportRegist
 public class ChessWebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private static final Logger log = LoggerFactory.getLogger(ChessWebSocketConfig.class);
 
+    @Value("${websocket.stomp.relay.enabled:false}")
+    private boolean relayEnabled;
+
     @Value("${spring.websocket.stomp.relay.host:localhost}")
     private String relayHost;
 
@@ -71,28 +74,29 @@ public class ChessWebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
                     if (accessor.getDestination() != null) {
                         String original = accessor.getDestination();
-                        String updated = original;
+                        if (relayEnabled) {
+                            String updated = original;
 
-                        // Do not touch user-destinations handled by Spring itself
-                        boolean isUserDest = original.startsWith("/user/");
-                        boolean isChatDest = original.startsWith("/queue/chat.") || original.startsWith("/queue/chat/*");
+                            // Do not touch user-destinations handled by Spring itself
+                            boolean isUserDest = original.startsWith("/user/");
 
-                        if (!isUserDest) {
-                            if (original.startsWith("/queue/")) {
-                                String tail = original.substring("/queue/".length());
-                                if (tail.contains("/")) {
-                                    updated = "/queue/" + tail.replace('/', '.');
+                            if (!isUserDest) {
+                                if (original.startsWith("/queue/")) {
+                                    String tail = original.substring("/queue/".length());
+                                    if (tail.contains("/")) {
+                                        updated = "/queue/" + tail.replace('/', '.');
+                                    }
+                                } else if (original.startsWith("/topic/")) {
+                                    // Map to explicit amq.topic exchange and dot-separated routing key
+                                    String tail = original.substring("/topic/".length());
+                                    updated = "/exchange/amq.topic/" + tail.replace('/', '.');
                                 }
-                            } else if (original.startsWith("/topic/")) {
-                                // Map to explicit amq.topic exchange and dot-separated routing key
-                                String tail = original.substring("/topic/".length());
-                                updated = "/exchange/amq.topic/" + tail.replace('/', '.');
                             }
-                        }
 
-                        if (!updated.equals(original)) {
-                            log.debug("Rewriting STOMP destination for session {}: {} -> {}", sessionId, original, updated);
-                            accessor.setDestination(updated);
+                            if (!updated.equals(original)) {
+                                log.debug("Rewriting STOMP destination for session {}: {} -> {}", sessionId, original, updated);
+                                accessor.setDestination(updated);
+                            }
                         }
                     }
 
@@ -175,14 +179,13 @@ public class ChessWebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 }
 
                 // Normalize outbound destinations too for consistency
-                if (accessor != null && accessor.getDestination() != null) {
+                if (accessor != null && accessor.getDestination() != null && relayEnabled) {
                     String original = accessor.getDestination();
                     String updated = original;
 
                     boolean isUserDest = original.startsWith("/user/");
-                    boolean isChatDest = original.startsWith("/queue/chat.") || original.startsWith("/queue/chat/*");
 
-                    if (!isUserDest && !isChatDest) {
+                    if (!isUserDest) {
                         if (original.startsWith("/queue/")) {
                             String tail = original.substring("/queue/".length());
                             if (tail.contains("/")) {
@@ -220,26 +223,33 @@ public class ChessWebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
-        try {
-            config.enableStompBrokerRelay("/topic", "/queue", "/exchange")
-                    .setRelayHost(relayHost)
-                    .setRelayPort(relayPort)
-                    .setClientLogin(relayLogin)
-                    .setClientPasscode(relayPasscode)
-                    .setSystemLogin(relayLogin)
-                    .setSystemPasscode(relayPasscode)
-                    .setVirtualHost("/")
-                    .setSystemHeartbeatSendInterval(10000)
-                    .setSystemHeartbeatReceiveInterval(10000)
-                    .setTaskScheduler(chessWebSocketTaskScheduler())
-                    .setAutoStartup(true);
+        if (relayEnabled) {
+            try {
+                log.info("Configuring STOMP broker relay at {}:{} (login={})", relayHost, relayPort, relayLogin);
+                config.enableStompBrokerRelay("/topic", "/queue", "/exchange")
+                        .setRelayHost(relayHost)
+                        .setRelayPort(relayPort)
+                        .setClientLogin(relayLogin)
+                        .setClientPasscode(relayPasscode)
+                        .setSystemLogin(relayLogin)
+                        .setSystemPasscode(relayPasscode)
+                        .setVirtualHost("/")
+                        .setSystemHeartbeatSendInterval(10000)
+                        .setSystemHeartbeatReceiveInterval(10000)
+                        .setTaskScheduler(chessWebSocketTaskScheduler())
+                        .setAutoStartup(true);
 
-            config.setApplicationDestinationPrefixes("/app");
-            config.setUserDestinationPrefix("/user");
+                config.setApplicationDestinationPrefixes("/app");
+                config.setUserDestinationPrefix("/user");
 
-        } catch (Exception e) {
-            log.error("Failed to configure STOMP broker relay, falling back to simple broker: {}", e.getMessage());
-            // Fallback to simple broker if STOMP relay fails
+            } catch (Exception e) {
+                log.error("Failed to configure STOMP broker relay, falling back to simple broker: {}", e.getMessage());
+                config.enableSimpleBroker("/topic", "/queue");
+                config.setApplicationDestinationPrefixes("/app");
+                config.setUserDestinationPrefix("/user");
+            }
+        } else {
+            log.info("Using simple in-memory message broker (relay disabled)");
             config.enableSimpleBroker("/topic", "/queue");
             config.setApplicationDestinationPrefixes("/app");
             config.setUserDestinationPrefix("/user");

@@ -46,7 +46,7 @@ public class MatchmakingService {
             queue.add(player);
             playersInQueue.put(userId, player);
             logger.info("Player {} joined queue with {} points. Queue size: {}", userId, points, queue.size());
-            messagingTemplate.convertAndSend("/exchange/amq.topic/matchmaking.status",
+            messagingTemplate.convertAndSend("/topic/matchmaking/status",
                     Map.of("playersInQueue", queue.size()));
         }
     }
@@ -63,7 +63,7 @@ public class MatchmakingService {
             if (removed) {
                 playersInQueue.remove(userId);
                 logger.info("Player {} left queue. Queue size: {}", userId, queue.size());
-                messagingTemplate.convertAndSend("/exchange/amq.topic/matchmaking.status",
+                messagingTemplate.convertAndSend("/topic/matchmaking/status",
                         Map.of("playersInQueue", queue.size()));
             }
         }
@@ -103,7 +103,7 @@ public class MatchmakingService {
                     sortedQueue.remove(player2);
 
                     // Update queue status
-                    messagingTemplate.convertAndSend("/exchange/amq.topic/matchmaking.status",
+                    messagingTemplate.convertAndSend("/topic/matchmaking/status",
                             Map.of("playersInQueue", queue.size()));
                 }
             }
@@ -240,7 +240,7 @@ public class MatchmakingService {
             }
 
             // Update queue status for everyone
-            messagingTemplate.convertAndSend("/exchange/amq.topic/matchmaking.status",
+            messagingTemplate.convertAndSend("/topic/matchmaking/status",
                     Map.of("playersInQueue", queue.size()));
         }
 
