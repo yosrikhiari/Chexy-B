@@ -572,4 +572,48 @@ public class GameSessionService implements IGameSessionService {
     }
 
 
+    @Transactional
+    @Override
+    public void isJoinedSpectating(String gameId, String playerId) {
+        GameSession session = gameSessionRepository.findById(gameId)
+                .orElseThrow(() -> new RuntimeException("Game session not found with id: " + gameId));
+        if (session.isAllowSpectators()){
+            session.getSpectatorIds().add(playerId);
+        }
+    }
+
+    @Transactional
+    @Override
+    public void isLeftSpectating(String gameId, String playerId) {
+        GameSession session = gameSessionRepository.findById(gameId)
+                .orElseThrow(() -> new RuntimeException("Game session not found with id: " + gameId));
+        if (session.isAllowSpectators()){
+            session.getSpectatorIds().remove(playerId);
+        }
+    }
+
+    @Transactional
+    @Override
+    public List<String> getAllSpectators(String gameId){
+        GameSession session = gameSessionRepository.findById(gameId)
+                .orElseThrow(() -> new RuntimeException("Game session not found with id: " + gameId));
+        return session.getSpectatorIds();
+    }
+
+    @Transactional
+    @Override
+    public void offSpectatorMode(String gameId){
+        GameSession session = gameSessionRepository.findById(gameId)
+                .orElseThrow(() -> new RuntimeException("Game session not found with id: " + gameId));
+        session.setAllowSpectators(false);
+    }
+
+    @Transactional
+    @Override
+    public void onSpectatorMode(String gameId){
+        GameSession session = gameSessionRepository.findById(gameId)
+                .orElseThrow(() -> new RuntimeException("Game session not found with id: " + gameId));
+        session.setAllowSpectators(true);
+    }
+
 }

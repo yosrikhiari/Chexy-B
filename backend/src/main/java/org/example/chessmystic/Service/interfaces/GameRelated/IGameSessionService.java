@@ -30,4 +30,20 @@ public interface IGameSessionService {
 
     @Transactional
     void saveSession(GameSession session);
+
+
+    @Transactional
+    void isJoinedSpectating(String gameId, String playerId);
+
+    @Transactional
+    void isLeftSpectating(String gameId, String playerId);
+
+    @Transactional
+    List<String> getAllSpectators(String gameId);
+
+    @Transactional
+    void offSpectatorMode(String gameId);
+
+    @Transactional
+    void onSpectatorMode(String gameId);
 }

@@ -52,4 +52,6 @@ public class ChessGameController {
         return ResponseEntity.ok(isDraw);
     }
 
+
+
 }

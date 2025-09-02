@@ -237,4 +237,49 @@ public class GameSessionController {
         }
     }
 
+
+    @PostMapping("/{gameId}/Spectate/join/{playerId}")
+    public void isSpectating(@PathVariable String gameId, @PathVariable String playerId) {
+        try{
+            gameSessionService.isJoinedSpectating(gameId,playerId);
+        } catch (Exception e) {
+            System.out.println(e);
+        }
+    }
+
+    @PostMapping("/{gameId}/Spectate/leave/{playerId}")
+    public void isLeftSpectating(@PathVariable String gameId, @PathVariable String playerId) {
+        try{
+            gameSessionService.isLeftSpectating(gameId,playerId);
+        } catch (Exception e) {
+            System.out.println(e);
+        }
+    }
+
+    @GetMapping("/{gameId}/Spectators")
+    public void getSpectators(@PathVariable String gameId) {
+        try{
+            gameSessionService.getAllSpectators(gameId);
+        } catch (Exception e) {
+            System.out.println(e);
+        }
+    }
+
+    @PostMapping("/{gameId}/Mode")
+    public void offSpectators(@PathVariable String gameId) {
+        try{
+            gameSessionService.offSpectatorMode(gameId);
+        } catch (Exception e) {
+            System.out.println(e);
+        }
+    }
+    @PostMapping("/{gameId}/Mode")
+    public void onSpectators(@PathVariable String gameId) {
+        try{
+            gameSessionService.onSpectatorMode(gameId);
+        } catch (Exception e) {
+            System.out.println(e);
+        }
+    }
+
 }
