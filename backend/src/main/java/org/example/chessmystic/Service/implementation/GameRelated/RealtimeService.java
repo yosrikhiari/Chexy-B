@@ -60,7 +60,7 @@ public class RealtimeService implements IRealtimeService {
      * @return A copy of the game session with delayed move history, or null if not enough moves
      */
 
-    public static GameSession createDelayedGameSession(String gameId, int delayPlies) {
+    public static void createDelayedGameSession(String gameId, int delayPlies) {
         // Find the original game session
         GameSession originalSession = gameSessionService.findById(gameId)
                 .orElseThrow(() -> {
@@ -73,8 +73,7 @@ public class RealtimeService implements IRealtimeService {
 
         // Check if there are enough moves to create a delay
         if (moveHistoryIds == null || moveHistoryIds.size() <= delayPlies) {
-            // Not enough moves to create delay, return null
-            return null;
+            System.out.println("Not enough moves to create delay, return null");
         }
 
         try {
@@ -291,11 +290,10 @@ public class RealtimeService implements IRealtimeService {
 
             delayedSession.setGameState(delayedState);
 
-            return delayedSession;
+            System.out.println("Delayed session: " + delayedSession.getGameState().getGamestateId());
 
         } catch (Exception e) {
             System.err.println("Error creating delayed game session: " + e.getMessage());
-            return null;
         }
     }
 

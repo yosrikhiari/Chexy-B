@@ -8,6 +8,7 @@ import org.example.chessmystic.Models.chess.BoardPosition;
 import org.example.chessmystic.Models.chess.Piece;
 import org.example.chessmystic.Models.chess.PieceColor;
 import org.example.chessmystic.Controller.TimerWebSocketController;
+import org.example.chessmystic.Repository.GameSessionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,16 +23,18 @@ public class GameOrchestrationService {
     private final PlayerActionService playerActionService;
     private final GameSessionService gameSessionService;
     private final TimerWebSocketController timerWebSocketController;
+    private final GameSessionRepository gameSessionRepository;
 
     @Autowired
     public GameOrchestrationService(ChessGameService chessGameService,
                                     PlayerActionService playerActionService,
                                     GameSessionService gameSessionService,
-                                    TimerWebSocketController timerWebSocketController) {
+                                    TimerWebSocketController timerWebSocketController, GameSessionRepository gameSessionRepository) {
         this.chessGameService = chessGameService;
         this.playerActionService = playerActionService;
         this.gameSessionService = gameSessionService;
         this.timerWebSocketController = timerWebSocketController;
+        this.gameSessionRepository = gameSessionRepository;
     }
 
     @Transactional
@@ -44,6 +47,11 @@ public class GameOrchestrationService {
         var session = gameSessionService.findById(gameId)
                 .orElseThrow(() -> {
                     System.err.println("Game session not found: " + gameId);
+                    return new IllegalArgumentException("Game session not found");
+                });
+        var specsession = gameSessionService.findById("SpecSession-"+gameId)
+                .orElseThrow(() -> {
+                    System.err.println("Game session not found: " + "SpecSession-"+gameId);
                     return new IllegalArgumentException("Game session not found");
                 });
 
@@ -118,6 +126,8 @@ public class GameOrchestrationService {
         session.setGameState(gameState);
         session.setBoard(board);
         gameSessionService.saveSession(session);
+        gameSessionRepository.removeByGameId("SpecSession-"+session.getGameId());
+        RealtimeService.createDelayedGameSession(session.getGameId(),2);
         timerWebSocketController.broadcastTimerUpdate(gameId, session);
 
         return gameState;

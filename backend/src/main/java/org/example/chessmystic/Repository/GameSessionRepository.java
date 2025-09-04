@@ -30,4 +30,6 @@ public interface GameSessionRepository extends MongoRepository<GameSession, Stri
     GameSession findByEnhancedGameStateIdAndPlayerId(String enhancedGameStateId, String playerId);
 
     GameSession findByEnhancedGameStateId(String enhancedGameStateId);
+
+    void removeByGameId(String gameId);
 }

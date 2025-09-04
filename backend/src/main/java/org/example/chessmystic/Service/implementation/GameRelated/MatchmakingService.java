@@ -292,7 +292,6 @@ public class MatchmakingService {
             // Create game session
             GameSession session = gameSessionService.createGameSession(
                     whitePlayer.userId, GameMode.CLASSIC_MULTIPLAYER, false, null);
-            GameSession SpectatorsSession = RealtimeService.createDelayedGameSession(session.getGameId(),2);
             session = gameSessionService.joinGame(session.getGameId(), blackPlayer.userId, null);
             session = gameSessionService.startGame(session.getGameId());
 
