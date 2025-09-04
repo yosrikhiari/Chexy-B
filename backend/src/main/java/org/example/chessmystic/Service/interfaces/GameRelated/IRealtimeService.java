@@ -7,8 +7,6 @@ import org.springframework.transaction.annotation.Transactional;
 public interface IRealtimeService {
     void broadcastGameState(String gameId);
 
-    @Transactional
-    GameSession createDelayedGameSession(String gameId, int delayPlies);
 
     void sendToPlayer(String playerId, Object message);
 }

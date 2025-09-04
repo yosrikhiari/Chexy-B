@@ -41,15 +41,4 @@ public class RealtimeController {
                     .body(Map.of("error", "Failed to send message", "message", "An unexpected error occurred"));
         }
     }
-
-    @PostMapping("/create/spectator/session/{gameId}")
-    public ResponseEntity<?> createSpectatorSession(@PathVariable String gameId, @RequestBody Object message) {
-        try {
-            realtimeService.createDelayedGameSession(gameId, 2);
-            return ResponseEntity.ok(Map.of("message", "Message sent to player successfully"));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Failed to send message", "message", "An unexpected error occurred"));
-        }
-    }
 }

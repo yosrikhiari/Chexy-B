@@ -1,11 +1,13 @@
 package org.example.chessmystic.Service.implementation.GameRelated;
 
 import org.apache.commons.lang3.function.TriConsumer;
+import org.example.chessmystic.Models.GameStateandFlow.GameState;
 import org.example.chessmystic.Models.Interactions.PlayerAction;
 import org.example.chessmystic.Models.Tracking.GameHistory;
 import org.example.chessmystic.Models.Tracking.GameSession;
 import org.example.chessmystic.Models.chess.BoardPosition;
 import org.example.chessmystic.Models.chess.Piece;
+import org.example.chessmystic.Models.chess.PieceColor;
 import org.example.chessmystic.Repository.PlayerActionRepository;
 import org.example.chessmystic.Service.interfaces.GameRelated.IRealtimeService;
 import org.slf4j.Logger;
@@ -26,16 +28,16 @@ public class RealtimeService implements IRealtimeService {
 
     private static final Logger logger = LoggerFactory.getLogger(RealtimeService.class);
     private final SimpMessagingTemplate messagingTemplate;
-    private final GameSessionService gameSessionService;
-    private final GameHistoryService gameHistoryService;
-    private final PlayerActionRepository playerActionRepository;
+    private static GameSessionService gameSessionService = null;
+    private static GameHistoryService gameHistoryService = null;
+    private static PlayerActionRepository playerActionRepository = null;
 
     @Autowired
     public RealtimeService(SimpMessagingTemplate messagingTemplate, GameSessionService gameSessionService, GameHistoryService gameHistoryService, PlayerActionRepository playerActionRepository) {
         this.messagingTemplate = messagingTemplate;
-        this.gameSessionService = gameSessionService;
-        this.gameHistoryService = gameHistoryService;
-        this.playerActionRepository = playerActionRepository;
+        RealtimeService.gameSessionService = gameSessionService;
+        RealtimeService.gameHistoryService = gameHistoryService;
+        RealtimeService.playerActionRepository = playerActionRepository;
     }
 
     @Override
@@ -57,9 +59,8 @@ public class RealtimeService implements IRealtimeService {
      * @param delayPlies Number of plies (half-moves) to delay (default: 2)
      * @return A copy of the game session with delayed move history, or null if not enough moves
      */
-    @Transactional
-    @Override
-    public GameSession createDelayedGameSession(String gameId, int delayPlies) {
+
+    public static GameSession createDelayedGameSession(String gameId, int delayPlies) {
         // Find the original game session
         GameSession originalSession = gameSessionService.findById(gameId)
                 .orElseThrow(() -> {
@@ -81,7 +82,7 @@ public class RealtimeService implements IRealtimeService {
             GameSession delayedSession = new GameSession();
 
             // Copy all the basic fields from the original session
-            delayedSession.setGameId(originalSession.getGameId());
+            delayedSession.setGameId("SpecSession-"+originalSession.getGameId());
             delayedSession.setWhitePlayer(originalSession.getWhitePlayer());
             delayedSession.setBlackPlayer(originalSession.getBlackPlayer());
             delayedSession.setGameMode(originalSession.getGameMode());
@@ -132,7 +133,13 @@ public class RealtimeService implements IRealtimeService {
                 playerActions.add(playerActionRepository.findById(MOVEID).orElseThrow(() -> new RuntimeException("Player action not found")));
             }
 
+            actions.clear();
             playerActions.sort(Comparator.comparingInt(PlayerAction::getSequenceNumber));
+            for (PlayerAction playerAction : playerActions) {
+                actions.add(playerAction.getId());
+            }
+
+
 
             int totalPlies = playerActions.size();
             int cutoff = Math.max(0, totalPlies - delayPlies);
@@ -197,7 +204,7 @@ public class RealtimeService implements IRealtimeService {
 
                     case CASTLE_KINGSIDE: {
                         // King e->g, rook h->f. Need color to pick ranks.
-                        boolean isWhite = moving.getColor() == org.example.chessmystic.Models.chess.PieceColor.white;
+                        boolean isWhite = moving.getColor() == PieceColor.white;
                         int rank = isWhite ? 7 : 0;
                         // king: (4, rank) -> (6, rank)
                         setPiece.accept(6, rank, moving);
@@ -215,7 +222,7 @@ public class RealtimeService implements IRealtimeService {
                     }
 
                     case CASTLE_QUEENSIDE: {
-                        boolean isWhite = moving.getColor() == org.example.chessmystic.Models.chess.PieceColor.white;
+                        boolean isWhite = moving.getColor() == PieceColor.white;
                         int rank = isWhite ? 7 : 0;
                         // king: (4, rank) -> (2, rank)
                         setPiece.accept(2, rank, moving);
@@ -260,14 +267,14 @@ public class RealtimeService implements IRealtimeService {
             delayedSession.setBoard(delayedboard);
 
             // 3) Set turn based on parity (even ply → white to move; odd → black)
-            org.example.chessmystic.Models.chess.PieceColor turn =
+            PieceColor turn =
                     (cutoff % 2 == 0)
-                            ? org.example.chessmystic.Models.chess.PieceColor.white
-                            : org.example.chessmystic.Models.chess.PieceColor.black;
+                            ? PieceColor.white
+                            : PieceColor.black;
 
             // If you want to avoid mutating original GameState, create a lightweight clone
-            org.example.chessmystic.Models.GameStateandFlow.GameState delayedState =
-                    org.example.chessmystic.Models.GameStateandFlow.GameState.builder()
+            GameState delayedState =
+                    GameState.builder()
                             .gamestateId(originalSession.getGameState().getGamestateId())
                             .gameSessionId(originalSession.getGameId())
                             .currentTurn(turn)
