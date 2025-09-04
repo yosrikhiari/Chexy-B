@@ -512,7 +512,7 @@ public class GameSessionService implements IGameSessionService {
         session.setBoard(initializeStandardChessBoard());
     }
 
-    private Piece[][] initializeStandardChessBoard() {
+    public Piece[][] initializeStandardChessBoard() {
         Piece[][] board = new Piece[8][8];
         board[0][0] = new Piece(PieceType.ROOK, PieceColor.black);
         board[0][1] = new Piece(PieceType.KNIGHT, PieceColor.black);

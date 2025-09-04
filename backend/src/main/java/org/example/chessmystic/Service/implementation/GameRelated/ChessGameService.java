@@ -30,6 +30,8 @@ public class ChessGameService implements IChessGameService {
     private final TieResolutionOptionService tieResolutionOptionService;
     private final GameHistoryRepository gameHistoryRepository;
 
+
+
     @Autowired
     public ChessGameService(GameSessionRepository gameSessionRepository,
                             GameStateRepository gameStateRepository,

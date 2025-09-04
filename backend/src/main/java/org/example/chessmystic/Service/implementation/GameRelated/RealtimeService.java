@@ -1,6 +1,12 @@
 package org.example.chessmystic.Service.implementation.GameRelated;
 
+import org.apache.commons.lang3.function.TriConsumer;
+import org.example.chessmystic.Models.Interactions.PlayerAction;
+import org.example.chessmystic.Models.Tracking.GameHistory;
 import org.example.chessmystic.Models.Tracking.GameSession;
+import org.example.chessmystic.Models.chess.BoardPosition;
+import org.example.chessmystic.Models.chess.Piece;
+import org.example.chessmystic.Repository.PlayerActionRepository;
 import org.example.chessmystic.Service.interfaces.GameRelated.IRealtimeService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,7 +16,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 
 @Service
 public class RealtimeService implements IRealtimeService {
@@ -18,11 +27,15 @@ public class RealtimeService implements IRealtimeService {
     private static final Logger logger = LoggerFactory.getLogger(RealtimeService.class);
     private final SimpMessagingTemplate messagingTemplate;
     private final GameSessionService gameSessionService;
+    private final GameHistoryService gameHistoryService;
+    private final PlayerActionRepository playerActionRepository;
 
     @Autowired
-    public RealtimeService(SimpMessagingTemplate messagingTemplate, GameSessionService gameSessionService) {
+    public RealtimeService(SimpMessagingTemplate messagingTemplate, GameSessionService gameSessionService, GameHistoryService gameHistoryService, PlayerActionRepository playerActionRepository) {
         this.messagingTemplate = messagingTemplate;
         this.gameSessionService = gameSessionService;
+        this.gameHistoryService = gameHistoryService;
+        this.playerActionRepository = playerActionRepository;
     }
 
     @Override
@@ -31,7 +44,7 @@ public class RealtimeService implements IRealtimeService {
                 .orElseThrow(() -> new RuntimeException("Game session not found with id: " + gameId));
 
         logger.info("Broadcasting game state for game: {}", gameId);
-        messagingTemplate.convertAndSend("/topic/game/" + gameId, session.getGameState());
+        messagingTemplate.convertAndSend("/topic/broadcast/" + gameId, session.getGameState());
         if (session.getSpectatorIds() != null) {
             session.getSpectatorIds().forEach(spectatorId ->
                     messagingTemplate.convertAndSendToUser(spectatorId, "/queue/game/" + gameId, session.getGameState()));
@@ -106,6 +119,170 @@ public class RealtimeService implements IRealtimeService {
             // IMPORTANT: You'll also need to reconstruct the board state
             // based on the delayed move history, not the current board
             // This depends on how you want to handle the board reconstruction
+            Piece[][] delayedboard = gameSessionService.initializeStandardChessBoard() ;
+
+            GameHistory gameHistory = gameHistoryService.findByGameSessionId(originalSession.getGameId())
+                    .orElseThrow(() -> new RuntimeException("Game history not found"));
+
+            List<String> actions = gameHistory.getPlayerActionIds();
+
+            List<PlayerAction> playerActions = new ArrayList<>();
+
+            for (String MOVEID : actions ){
+                playerActions.add(playerActionRepository.findById(MOVEID).orElseThrow(() -> new RuntimeException("Player action not found")));
+            }
+
+            playerActions.sort(Comparator.comparingInt(PlayerAction::getSequenceNumber));
+
+            int totalPlies = playerActions.size();
+            int cutoff = Math.max(0, totalPlies - delayPlies);
+            BoardPosition enPassantTarget = null;
+            BiFunction<Integer, Integer, Piece> getPiece = (x, y) -> delayedboard[y][x];
+            TriConsumer<Integer, Integer, Piece> setPiece = (x, y, p) -> delayedboard[y][x] = p;
+            BiConsumer<Integer, Integer> clearSquare = (x, y) -> delayedboard[y][x] = null;
+
+            // Apply moves up to cutoff
+            for (int i = 0; i < cutoff; i++) {
+                PlayerAction a = playerActions.get(i);
+
+                int fromX = a.getFromX();
+                int fromY = a.getFromY();
+                int toX   = a.getToX();
+                int toY   = a.getToY();
+
+                Piece moving = getPiece.apply(fromX, fromY);
+                if (moving == null) {
+                    // If data is inconsistent, skip defensively
+                    continue;
+                }
+
+                switch (a.getActionType()) {
+                    case NORMAL:
+                    case CAPTURE: {
+                        // Standard move (capture if target not null)
+                        Piece captured = getPiece.apply(toX, toY);
+                        setPiece.accept(toX, toY, moving);
+                        clearSquare.accept(fromX, fromY);
+
+                        // Pawn double push should have been encoded as DOUBLE_PAWN_PUSH.
+                        // Since it's NORMAL here, clear en passant.
+                        enPassantTarget = null;
+                        moving.setHasMoved(true);
+                        break;
+                    }
+
+                    case DOUBLE_PAWN_PUSH: {
+                        // Move pawn two squares and set en passant target to the passed square
+                        setPiece.accept(toX, toY, moving);
+                        clearSquare.accept(fromX, fromY);
+
+                        int midY = (fromY + toY) / 2;
+                        enPassantTarget = new BoardPosition(midY, toX); // BoardPosition(row, col)
+                        moving.setHasMoved(true);
+                        break;
+                    }
+
+                    case EN_PASSANT: {
+                        // Pawn moves to empty square, captured pawn is on (toX, fromY)
+                        setPiece.accept(toX, toY, moving);
+                        clearSquare.accept(fromX, fromY);
+
+                        // Remove the captured pawn behind the destination rank
+                        clearSquare.accept(toX, fromY);
+
+                        enPassantTarget = null;
+                        moving.setHasMoved(true);
+                        break;
+                    }
+
+                    case CASTLE_KINGSIDE: {
+                        // King e->g, rook h->f. Need color to pick ranks.
+                        boolean isWhite = moving.getColor() == org.example.chessmystic.Models.chess.PieceColor.white;
+                        int rank = isWhite ? 7 : 0;
+                        // king: (4, rank) -> (6, rank)
+                        setPiece.accept(6, rank, moving);
+                        clearSquare.accept(4, rank);
+                        // rook: (7, rank) -> (5, rank)
+                        Piece rook = getPiece.apply(7, rank);
+                        if (rook != null) {
+                            setPiece.accept(5, rank, rook);
+                            clearSquare.accept(7, rank);
+                            rook.setHasMoved(true);
+                        }
+                        enPassantTarget = null;
+                        moving.setHasMoved(true);
+                        break;
+                    }
+
+                    case CASTLE_QUEENSIDE: {
+                        boolean isWhite = moving.getColor() == org.example.chessmystic.Models.chess.PieceColor.white;
+                        int rank = isWhite ? 7 : 0;
+                        // king: (4, rank) -> (2, rank)
+                        setPiece.accept(2, rank, moving);
+                        clearSquare.accept(4, rank);
+                        // rook: (0, rank) -> (3, rank)
+                        Piece rook = getPiece.apply(0, rank);
+                        if (rook != null) {
+                            setPiece.accept(3, rank, rook);
+                            clearSquare.accept(0, rank);
+                            rook.setHasMoved(true);
+                        }
+                        enPassantTarget = null;
+                        moving.setHasMoved(true);
+                        break;
+                    }
+
+                    case PROMOTION: {
+                        // You need the promotion piece type; add a field to PlayerAction (e.g., promotionTo).
+                        // If you encoded it in abilityUsed, parse it. Example:
+                        // PieceType promo = PieceType.valueOf(a.getAbilityUsed()); // ensure it matches enum
+                        // Move pawn, then replace with promoted piece with same color.
+
+                        // Fallback (if not available): treat as NORMAL move to keep reconstruction working.
+                        setPiece.accept(toX, toY, moving);
+                        clearSquare.accept(fromX, fromY);
+                        enPassantTarget = null;
+                        moving.setHasMoved(true);
+
+                        // Then replace with the promoted piece if available
+                        // Piece promoted = new Piece(promo, moving.getColor());
+                        // setPiece.accept(toX, toY, promoted);
+                        break;
+                    }
+                }
+            }
+            // Build the delayed session snapshot
+            // 1) Trim move history to the visible prefix
+            delayedMoveHistory = actions.subList(0, Math.max(0, actions.size() - delayPlies));
+            delayedSession.setMoveHistoryIds(new ArrayList<>(delayedMoveHistory));
+
+            // 2) Assign reconstructed board to session (or inside GameState, depending on your use)
+            delayedSession.setBoard(delayedboard);
+
+            // 3) Set turn based on parity (even ply → white to move; odd → black)
+            org.example.chessmystic.Models.chess.PieceColor turn =
+                    (cutoff % 2 == 0)
+                            ? org.example.chessmystic.Models.chess.PieceColor.white
+                            : org.example.chessmystic.Models.chess.PieceColor.black;
+
+            // If you want to avoid mutating original GameState, create a lightweight clone
+            org.example.chessmystic.Models.GameStateandFlow.GameState delayedState =
+                    org.example.chessmystic.Models.GameStateandFlow.GameState.builder()
+                            .gamestateId(originalSession.getGameState().getGamestateId())
+                            .gameSessionId(originalSession.getGameId())
+                            .currentTurn(turn)
+                            .moveCount(cutoff / 2)
+                            .isGameOver(false)
+                            .isCheck(false)
+                            .isCheckmate(false)
+                            .canWhiteCastleKingSide(false) // compute properly later if needed
+                            .canWhiteCastleQueenSide(false)
+                            .canBlackCastleKingSide(false)
+                            .canBlackCastleQueenSide(false)
+                            .enPassantTarget(null) // or set from local enPassantTarget if you want to expose it
+                            .build();
+
+            delayedSession.setGameState(delayedState);
 
             return delayedSession;
 
