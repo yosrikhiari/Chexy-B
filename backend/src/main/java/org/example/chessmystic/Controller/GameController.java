@@ -25,15 +25,21 @@ public class GameController {
     @PostMapping("/games/{gameId}/moves")
     public ResponseEntity<?> makeMove(@PathVariable String gameId, @RequestBody BoardPosition move) {
         try {
+            System.out.println("GameController: Received move request for gameId: " + gameId);
+            System.out.println("GameController: Move details: " + move);
+            
             GameState gameState = gameOrchestrationService.executeMove(gameId, move);
             return ResponseEntity.ok(gameState);
         } catch (IllegalArgumentException e) {
+            System.err.println("GameController: IllegalArgumentException - " + e.getMessage());
             return ResponseEntity.badRequest().body(Map.of(
                     "error", "Invalid move",
                     "message", e.getMessage(),
                     "status", 400
             ));
         } catch (Exception e) {
+            System.err.println("GameController: Unexpected error - " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.internalServerError().body(Map.of(
                     "error", "Internal server error",
                     "message", e.getMessage(),

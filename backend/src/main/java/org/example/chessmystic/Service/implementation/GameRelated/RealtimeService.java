@@ -29,7 +29,7 @@ public class RealtimeService implements IRealtimeService {
     private static final Logger logger = LoggerFactory.getLogger(RealtimeService.class);
     private final SimpMessagingTemplate messagingTemplate;
     private static GameSessionService gameSessionService = null;
-    private static GameHistoryService gameHistoryService = null;
+    static GameHistoryService gameHistoryService = null;
     private static PlayerActionRepository playerActionRepository = null;
 
     @Autowired
@@ -60,7 +60,7 @@ public class RealtimeService implements IRealtimeService {
      * @return A copy of the game session with delayed move history, or null if not enough moves
      */
 
-    public static void createDelayedGameSession(String gameId, int delayPlies) {
+    public static GameSession createDelayedGameSession(String gameId, int delayPlies) {
         // Find the original game session
         GameSession originalSession = gameSessionService.findById(gameId)
                 .orElseThrow(() -> {
@@ -73,7 +73,8 @@ public class RealtimeService implements IRealtimeService {
 
         // Check if there are enough moves to create a delay
         if (moveHistoryIds == null || moveHistoryIds.size() <= delayPlies) {
-            System.out.println("Not enough moves to create delay, return null");
+            // Not enough moves to create delay, return null
+            return null;
         }
 
         try {
@@ -129,7 +130,13 @@ public class RealtimeService implements IRealtimeService {
             List<PlayerAction> playerActions = new ArrayList<>();
 
             for (String MOVEID : actions ){
-                playerActions.add(playerActionRepository.findById(MOVEID).orElseThrow(() -> new RuntimeException("Player action not found")));
+                System.out.println("Looking for player action with ID: " + MOVEID);
+                var playerAction = playerActionRepository.findById(MOVEID);
+                if (playerAction.isEmpty()) {
+                    System.err.println("Player action not found for ID: " + MOVEID);
+                    throw new RuntimeException("Player action not found for ID: " + MOVEID);
+                }
+                playerActions.add(playerAction.get());
             }
 
             actions.clear();
@@ -290,10 +297,11 @@ public class RealtimeService implements IRealtimeService {
 
             delayedSession.setGameState(delayedState);
 
-            System.out.println("Delayed session: " + delayedSession.getGameState().getGamestateId());
+            return delayedSession;
 
         } catch (Exception e) {
             System.err.println("Error creating delayed game session: " + e.getMessage());
+            return null;
         }
     }
 

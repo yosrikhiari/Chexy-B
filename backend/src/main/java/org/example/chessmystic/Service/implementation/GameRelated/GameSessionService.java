@@ -121,12 +121,23 @@ public class GameSessionService implements IGameSessionService {
             session = gameSessionRepository.save(session);
         }
 
-        return gameSessionRepository.save(session);
+        GameSession savedSession = gameSessionRepository.save(session);
+        logger.info("Game session created and saved: ID={}, Status={}, Mode={}", 
+                   savedSession.getGameId(), savedSession.getStatus(), savedSession.getGameMode());
+        return savedSession;
     }
 
     @Override
     public Optional<GameSession> findById(String gameId) {
-        return gameSessionRepository.findById(gameId);
+        logger.info("Searching for game session with ID: {}", gameId);
+        Optional<GameSession> result = gameSessionRepository.findById(gameId);
+        if (result.isPresent()) {
+            logger.info("Game session found: ID={}, Status={}, Mode={}", 
+                       result.get().getGameId(), result.get().getStatus(), result.get().getGameMode());
+        } else {
+            logger.warn("Game session not found for ID: {}", gameId);
+        }
+        return result;
     }
 
     @Override

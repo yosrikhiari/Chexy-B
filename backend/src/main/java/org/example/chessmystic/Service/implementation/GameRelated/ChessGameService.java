@@ -63,7 +63,7 @@ public class ChessGameService implements IChessGameService {
         int toRow = move.getTorow();
         int toCol = move.getTocol();
 
-        if (isValidPosition(fromRow, fromCol) || isValidPosition(toRow, toCol)) {
+        if (!isValidPosition(fromRow, fromCol) || !isValidPosition(toRow, toCol)) {
             return false;
         }
 
@@ -263,7 +263,7 @@ public class ChessGameService implements IChessGameService {
     }
 
     private boolean isValidPosition(int row, int col) {
-        return row < 0 || row >= 8 || col < 0 || col >= 8;
+        return row >= 0 && row < 8 && col >= 0 && col < 8;
     }
 
     private boolean isValidPieceMove(Piece piece, int fromRow, int fromCol, int toRow, int toCol, Piece[][] board) {
