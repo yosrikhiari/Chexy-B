@@ -1,10 +1,7 @@
 package org.example.chessmystic.Controller;
 
 import org.example.chessmystic.Config.websocket.RabbitMQMessageService;
-import org.example.chessmystic.Models.ChatMessage;
-import org.example.chessmystic.Models.ChatMessageRequest;
-import org.example.chessmystic.Models.ChatHistoryRequest;
-import org.example.chessmystic.Models.MarkReadRequest;
+import org.example.chessmystic.Models.*;
 import org.example.chessmystic.Service.implementation.ChatService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,7 +28,9 @@ public class ChatController {
 
     @Autowired
     private RabbitMQMessageService rabbitMQMessageService;
-    
+
+
+
     @MessageMapping("/chat/send")
     public void sendMessage(@Payload ChatMessageRequest request) {
         log.info("Chat message received from {} to {}", request.getSenderId(), request.getReceiverId());
@@ -98,6 +97,18 @@ public class ChatController {
             }
         } catch (Exception e) {
             log.error("Error marking message as read: {}", e.getMessage(), e);
+        }
+    }
+
+
+    @MessageMapping("/spectator-chat/send")
+    public void sendSpectatorMessage(@Payload SpectatorChatMessage message) {
+        try {
+            // Broadcast to all spectators of this game
+            String destination = "/topic/spectator-chat/" + message.getGameId();
+            messagingTemplate.convertAndSend(destination, message);
+        } catch (Exception e) {
+            log.error("Error sending spectator message: {}", e.getMessage(), e);
         }
     }
 

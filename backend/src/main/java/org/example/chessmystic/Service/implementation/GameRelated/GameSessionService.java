@@ -590,6 +590,7 @@ public class GameSessionService implements IGameSessionService {
                 .orElseThrow(() -> new RuntimeException("Game session not found with id: " + gameId));
         if (session.isAllowSpectators()){
             session.getSpectatorIds().add(playerId);
+            gameSessionRepository.save(session);
         }
     }
 

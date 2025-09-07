@@ -239,7 +239,7 @@ public class GameSessionController {
 
 
     @PostMapping("/{gameId}/Spectate/join/{playerId}")
-    public void isSpectating(@PathVariable String gameId, @PathVariable String playerId) {
+    public void joinSpectate(@PathVariable String gameId, @PathVariable String playerId) {
         try{
             gameSessionService.isJoinedSpectating(gameId,playerId);
         } catch (Exception e) {
@@ -248,7 +248,7 @@ public class GameSessionController {
     }
 
     @PostMapping("/{gameId}/Spectate/leave/{playerId}")
-    public void isLeftSpectating(@PathVariable String gameId, @PathVariable String playerId) {
+    public void leaveSpectate(@PathVariable String gameId, @PathVariable String playerId) {
         try{
             gameSessionService.isLeftSpectating(gameId,playerId);
         } catch (Exception e) {
@@ -257,11 +257,12 @@ public class GameSessionController {
     }
 
     @GetMapping("/{gameId}/Spectators")
-    public void getSpectators(@PathVariable String gameId) {
+    public ResponseEntity<List<String>> getSpectators(@PathVariable String gameId) {
         try{
-            gameSessionService.getAllSpectators(gameId);
+            List<String> spectators = gameSessionService.getAllSpectators(gameId);
+            return ResponseEntity.ok(spectators);
         } catch (Exception e) {
-            System.out.println(e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(List.of());
         }
     }
 
