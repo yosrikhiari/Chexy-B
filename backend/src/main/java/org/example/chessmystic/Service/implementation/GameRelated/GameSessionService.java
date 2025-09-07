@@ -618,6 +618,7 @@ public class GameSessionService implements IGameSessionService {
         GameSession session = gameSessionRepository.findById(gameId)
                 .orElseThrow(() -> new RuntimeException("Game session not found with id: " + gameId));
         session.setAllowSpectators(false);
+        gameSessionRepository.save(session);
     }
 
     @Transactional
@@ -626,6 +627,7 @@ public class GameSessionService implements IGameSessionService {
         GameSession session = gameSessionRepository.findById(gameId)
                 .orElseThrow(() -> new RuntimeException("Game session not found with id: " + gameId));
         session.setAllowSpectators(true);
+        gameSessionRepository.save(session);
     }
 
 }
