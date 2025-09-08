@@ -234,6 +234,8 @@ public class GameSessionService implements IGameSessionService {
     public GameSession endGame(String gameId, String winnerId, boolean isDraw, TieResolutionOption tieOption) {
         GameSession session = gameSessionRepository.findById(gameId)
                 .orElseThrow(() -> new RuntimeException("Game session not found with id: " + gameId));
+        GameSession Delayedsession = gameSessionRepository.findById("SpecSession-"+gameId)
+                .orElseThrow(() -> new RuntimeException("Delayed Game session not found with id: " + gameId));
         
         logger.info("endGame called for game {} - current status: {}, requested winnerId: {}, isDraw: {}", 
                    gameId, session.getStatus(), winnerId, isDraw);
@@ -248,17 +250,23 @@ public class GameSessionService implements IGameSessionService {
         session.setStatus(GameStatus.COMPLETED);
         session.setLastActivity(LocalDateTime.now());
         session.setActive(false);
+        Delayedsession.setStatus(GameStatus.COMPLETED);
+        Delayedsession.setLastActivity(LocalDateTime.now());
+        Delayedsession.setActive(false);
 
         // Deactivate timers to prevent further updates
         if (session.getTimers() != null) {
             session.getTimers().getWhite().setActive(false);
             session.getTimers().getBlack().setActive(false);
+            Delayedsession.getTimers().getWhite().setActive(false);
+            Delayedsession.getTimers().getBlack().setActive(false);
         }
 
         GameResult result = buildGameResult(session, isDraw ? null : winnerId, isDraw, tieOption);
         updatePlayerStats(session, winnerId, isDraw, result);
         gameHistoryService.updateGameHistory(session.getGameHistoryId(), result, LocalDateTime.now());
         GameSession updatedSession = gameSessionRepository.save(session);
+        gameSessionRepository.save(Delayedsession);
         logger.info("Game ended: {} with status {}", gameId, updatedSession.getStatus());
 
         // Notify all subscribers that this game has ended so clients can close/unsubscribe
