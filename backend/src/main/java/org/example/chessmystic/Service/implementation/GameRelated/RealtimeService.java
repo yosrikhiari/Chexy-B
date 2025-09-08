@@ -68,14 +68,8 @@ public class RealtimeService implements IRealtimeService {
                     return new IllegalArgumentException("Game session not found");
                 });
 
-        // Get the move history
-        List<String> moveHistoryIds = originalSession.getMoveHistoryIds();
-
-        // Check if there are enough moves to create a delay
-        if (moveHistoryIds == null || moveHistoryIds.size() <= delayPlies) {
-            // Not enough moves to create delay, return null
-            return null;
-        }
+        // Note: Do not rely on originalSession.getMoveHistoryIds() (may be empty/not maintained).
+        // We'll determine sufficiency using GameHistory actions below.
 
         try {
             // Create a NEW GameSession object (don't modify the original!)
@@ -109,14 +103,6 @@ public class RealtimeService implements IRealtimeService {
             // Create a NEW list for the delayed move history (don't modify the original!)
             List<String> delayedMoveHistory = new ArrayList<>();
 
-            // Add all moves EXCEPT the last 'delayPlies' moves
-            for (int i = 0; i < moveHistoryIds.size() - delayPlies; i++) {
-                delayedMoveHistory.add(moveHistoryIds.get(i));
-            }
-
-            // Set the delayed move history on the new session
-            delayedSession.setMoveHistoryIds(delayedMoveHistory);
-
             // IMPORTANT: You'll also need to reconstruct the board state
             // based on the delayed move history, not the current board
             // This depends on how you want to handle the board reconstruction
@@ -148,6 +134,9 @@ public class RealtimeService implements IRealtimeService {
 
 
             int totalPlies = playerActions.size();
+            if (totalPlies <= delayPlies) {
+                return null; // Not enough moves yet for a delayed session
+            }
             int cutoff = Math.max(0, totalPlies - delayPlies);
             BoardPosition enPassantTarget = null;
             BiFunction<Integer, Integer, Piece> getPiece = (x, y) -> delayedboard[y][x];
