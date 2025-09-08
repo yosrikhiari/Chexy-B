@@ -70,35 +70,12 @@ public class ChessMessageListener {
         }
     }
 
-    @RabbitListener(queues = RabbitMQConfig.TIMER_UPDATE, containerFactory = "messageListenerContainer")
-    public void handleTimerUpdate(Object timerData) {
-        try {
-            logger.info("Received Timer Update: {}", timerData);
-            messagingTemplate.convertAndSend("/topic/timer-updates/{gameId}", timerData);
-        } catch (Exception e) {
-            logger.error("Error handling timer update: {}", e.getMessage(), e);
-        }
-    }
+    // Timer updates for spectators are published per-game from orchestration using delayed session.
 
-    @RabbitListener(queues = RabbitMQConfig.GAME_STATE_UPDATE, containerFactory = "messageListenerContainer")
-    public void handleGameStateUpdate(Object gameStateUpdatedata) {
-        try {
-            logger.info("Received GameState Update: {}", gameStateUpdatedata);
-            messagingTemplate.convertAndSend("/topic/spectator-game-state/{gameId}", gameStateUpdatedata);
-        } catch (Exception e) {
-            logger.error("Error handling timer update: {}", e.getMessage(), e);
-        }
-    }
 
-    @RabbitListener(queues = RabbitMQConfig.SPECTATOR_COUNT, containerFactory = "messageListenerContainer")
-    public void handleSpectatorCountUpdate(Object Count) {
-        try {
-            logger.info("Received GameState Update: {}", Count);
-            messagingTemplate.convertAndSend("/topic/spectator-game-state/{gameId}", Count);
-        } catch (Exception e) {
-            logger.error("Error handling timer update: {}", e.getMessage(), e);
-        }
-    }
+
+
+    // Spectator count is published from controllers with a specific gameId.
 
 
 

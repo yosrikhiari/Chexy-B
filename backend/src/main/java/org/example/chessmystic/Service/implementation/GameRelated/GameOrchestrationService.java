@@ -211,8 +211,6 @@ public class GameOrchestrationService {
             if (delayedSession != null) {
                 messagingTemplate.convertAndSend("/topic/spectator-game-state/" + gameId, delayedSession.getGameState());
                 messagingTemplate.convertAndSend("/topic/timer-updates/" + gameId, delayedSession.getTimers());
-                int spectatorCount = delayedSession.getSpectatorIds() == null ? 0 : delayedSession.getSpectatorIds().size();
-                messagingTemplate.convertAndSend("/topic/spectator-count/" + gameId, Map.of("count", spectatorCount));
             }
         } catch (Exception e) {
             System.err.println("Delayed Session publish failed: " + e.getMessage());
