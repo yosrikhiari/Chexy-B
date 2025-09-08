@@ -11,4 +11,8 @@ public class GameTimers {
     private PlayerTimer white;
     private PlayerTimer black;
     private int defaultTime;
+
+
+
+
 }

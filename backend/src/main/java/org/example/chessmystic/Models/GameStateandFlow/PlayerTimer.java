@@ -8,6 +8,6 @@ import lombok.*;
 @AllArgsConstructor
 @Builder
 public class PlayerTimer {
-    private int timeLeft; // in seconds
+    private int timeLeft; 
     private boolean active;
 }

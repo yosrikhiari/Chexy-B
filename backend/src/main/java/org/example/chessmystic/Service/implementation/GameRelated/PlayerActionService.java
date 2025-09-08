@@ -65,7 +65,7 @@ public class PlayerActionService implements IPlayerActionService {
             session.setMoveHistoryIds(new ArrayList<>());
         }
         session.getMoveHistoryIds().add(savedAction.getId());
-        gameSessionService.updateGameStatus(gameSessionId, session.getStatus());
+        gameSessionService.saveSession(session);
 
         if (gameHistoryId != null) {
             gameHistoryService.addPlayerAction(gameHistoryId, savedAction.getId());

@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.util.Map;
 
 @Service
@@ -190,10 +191,12 @@ public class GameOrchestrationService {
         System.out.println("Creating delayed game session...");
         GameSession delayedSession = null;
         try {
-            delayedSession = RealtimeService.createDelayedGameSession(gameSession.getGameId(), 2);
-            if (delayedSession != null) {
-                gameSessionService.saveSession(delayedSession);
-                System.out.println("Delayed game session created successfully");
+            Duration spectatorDelay = Duration.ofMinutes(2);
+            GameSession delayed = RealtimeService.createTimeDelayedGameSession(gameId, spectatorDelay);
+            if (delayed != null) {
+                gameSessionService.saveSession(delayed);
+                messagingTemplate.convertAndSend("/topic/spectator-game-state/" + gameId, delayed.getGameState());
+                messagingTemplate.convertAndSend("/topic/timer-updates/" + gameId, delayed.getTimers());
             } else {
                 System.out.println("No delayed game session needed (not enough moves)");
             }
