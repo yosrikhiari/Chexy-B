@@ -8,30 +8,36 @@ import org.example.chessmystic.Models.chess.BoardPosition;
 import org.example.chessmystic.Models.chess.Piece;
 import org.example.chessmystic.Models.chess.PieceColor;
 import org.example.chessmystic.Controller.TimerWebSocketController;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.example.chessmystic.Repository.GameSessionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Map;
+
 @Service
 public class GameOrchestrationService {
+
 
     private final ChessGameService chessGameService;
     private final PlayerActionService playerActionService;
     private final GameSessionService gameSessionService;
     private final TimerWebSocketController timerWebSocketController;
     private final GameSessionRepository gameSessionRepository;
+    private final SimpMessagingTemplate messagingTemplate;
 
     @Autowired
     public GameOrchestrationService(ChessGameService chessGameService,
                                     PlayerActionService playerActionService,
                                     GameSessionService gameSessionService,
-                                    TimerWebSocketController timerWebSocketController, GameSessionRepository gameSessionRepository) {
+                                    TimerWebSocketController timerWebSocketController, GameSessionRepository gameSessionRepository, SimpMessagingTemplate messagingTemplate) {
         this.chessGameService = chessGameService;
         this.playerActionService = playerActionService;
         this.gameSessionService = gameSessionService;
         this.timerWebSocketController = timerWebSocketController;
         this.gameSessionRepository = gameSessionRepository;
+        this.messagingTemplate = messagingTemplate;
     }
 
     @Transactional
@@ -200,6 +206,20 @@ public class GameOrchestrationService {
         timerWebSocketController.broadcastTimerUpdate(gameId, gameSession);
 
         System.out.println("Move execution completed successfully");
+
+        try{
+            GameSession DelayedGameSession = RealtimeService.createDelayedGameSession(gameId, 2);
+            if (DelayedGameSession != null) {
+                gameSessionService.saveSession(DelayedGameSession);
+
+                messagingTemplate.convertAndSend("/topic/spectator-game-state/" + gameId, DelayedGameSession.getGameState());
+                messagingTemplate.convertAndSend("/topic/timer-updates/" + gameId, DelayedGameSession.getTimers());
+                messagingTemplate.convertAndSend("/topic/spectator-count/" + gameId, Map.of("count", DelayedGameSession.getSpectatorIds().size()));
+            }
+        }
+        catch(Exception e){
+            System.err.println("Delayed Session creation failed: " + e.getMessage());
+        }
         return gameState;
     }
 
