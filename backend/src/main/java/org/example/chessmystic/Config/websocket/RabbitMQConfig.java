@@ -18,6 +18,10 @@ public class RabbitMQConfig {
     public static final String CHESS_DEAD_LETTER_EXCHANGE = "chess.dlx";
 
 
+    public static final String GAME_STATE_UPDATE = "gamestate.update";
+    public static final String SPECTATOR_COUNT = "spectator.count";
+
+
     public static final String GAME_UPDATE_QUEUE = "game.update";
     public static final String MATCHMAKING_QUEUE = "matchmaking.queue";
     public static final String PLAYER_MOVES = "player.moves";
@@ -29,6 +33,8 @@ public class RabbitMQConfig {
     public static final String PLAYER_MOVES_RK = "player.moves.rk";
     public static final String TIMER_UPDATE_RK = "timer.update.rk";
     public static final String CHAT_RK = "chat.rk";
+    public static final String GAME_STATE_UPDATE_RK = "gamestate.update.rk";
+    public static final String SPECTATOR_COUNT_RK = "spectator.count.rk";
 
     @Value("${spring.rabbitmq.host:localhost}")
     private String rabbitmqHost;
@@ -149,6 +155,22 @@ public class RabbitMQConfig {
                 .build();
     }
 
+    @Bean
+    public Queue gameStateUpdateQueue() {
+        return QueueBuilder.durable(GAME_STATE_UPDATE)
+                .withArgument("x-dead-letters-exchange", CHESS_DEAD_LETTER_EXCHANGE)
+                .withArgument("x-message-ttl", 60000)
+                .build();
+    }
+
+    @Bean
+    public Queue spectatorCountQueue() {
+        return QueueBuilder.durable(SPECTATOR_COUNT)
+                .withArgument("x-dead-letters-exchange", CHESS_DEAD_LETTER_EXCHANGE)
+                .withArgument("x-message-ttl", 60000)
+                .build();
+    }
+
     // The Bindings
 
     @Bean
@@ -181,6 +203,20 @@ public class RabbitMQConfig {
         return BindingBuilder.bind(chatQueue())
                 .to(chessExchange())
                 .with(CHAT_RK); // Remove the wildcard for now to test direct routing
+    }
+
+    @Bean
+    public Binding gameStateUpdateBinding() {
+        return BindingBuilder.bind(gameStateUpdateQueue())
+                .to(chessExchange())
+                .with(GAME_STATE_UPDATE_RK);
+    }
+
+    @Bean
+    public Binding spectatorCountBinding() {
+        return BindingBuilder.bind(spectatorCountQueue())
+                .to(chessExchange())
+                .with(SPECTATOR_COUNT_RK);
     }
 
 }

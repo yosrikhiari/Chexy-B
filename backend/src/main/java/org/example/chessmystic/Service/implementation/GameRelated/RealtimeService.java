@@ -125,7 +125,7 @@ public class RealtimeService implements IRealtimeService {
             GameHistory gameHistory = gameHistoryService.findByGameSessionId(originalSession.getGameId())
                     .orElseThrow(() -> new RuntimeException("Game history not found"));
 
-            List<String> actions = gameHistory.getPlayerActionIds();
+            List<String> actions = new ArrayList<>(gameHistory.getPlayerActionIds());
 
             List<PlayerAction> playerActions = new ArrayList<>();
 
@@ -139,10 +139,10 @@ public class RealtimeService implements IRealtimeService {
                 playerActions.add(playerAction.get());
             }
 
-            actions.clear();
             playerActions.sort(Comparator.comparingInt(PlayerAction::getSequenceNumber));
+            List<String> sortedActionIds = new ArrayList<>();
             for (PlayerAction playerAction : playerActions) {
-                actions.add(playerAction.getId());
+                sortedActionIds.add(playerAction.getId());
             }
 
 
@@ -266,8 +266,8 @@ public class RealtimeService implements IRealtimeService {
             }
             // Build the delayed session snapshot
             // 1) Trim move history to the visible prefix
-            delayedMoveHistory = actions.subList(0, Math.max(0, actions.size() - delayPlies));
-            delayedSession.setMoveHistoryIds(new ArrayList<>(delayedMoveHistory));
+            List<String> visibleActionIds = sortedActionIds.subList(0, Math.max(0, sortedActionIds.size() - delayPlies));
+            delayedSession.setMoveHistoryIds(new ArrayList<>(visibleActionIds));
 
             // 2) Assign reconstructed board to session (or inside GameState, depending on your use)
             delayedSession.setBoard(delayedboard);

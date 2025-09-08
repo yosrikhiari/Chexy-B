@@ -188,8 +188,9 @@ public class GameOrchestrationService {
         }
 
         System.out.println("Creating delayed game session...");
+        GameSession delayedSession = null;
         try {
-            GameSession delayedSession = RealtimeService.createDelayedGameSession(gameSession.getGameId(),2);
+            delayedSession = RealtimeService.createDelayedGameSession(gameSession.getGameId(), 2);
             if (delayedSession != null) {
                 gameSessionService.saveSession(delayedSession);
                 System.out.println("Delayed game session created successfully");
@@ -198,7 +199,6 @@ public class GameOrchestrationService {
             }
         } catch (Exception e) {
             System.err.println("Failed to create delayed game session: " + e.getMessage());
-            // Don't fail the move execution for spectator session issues
             e.printStackTrace();
         }
 
@@ -207,18 +207,15 @@ public class GameOrchestrationService {
 
         System.out.println("Move execution completed successfully");
 
-        try{
-            GameSession DelayedGameSession = RealtimeService.createDelayedGameSession(gameId, 2);
-            if (DelayedGameSession != null) {
-                gameSessionService.saveSession(DelayedGameSession);
-
-                messagingTemplate.convertAndSend("/topic/spectator-game-state/" + gameId, DelayedGameSession.getGameState());
-                messagingTemplate.convertAndSend("/topic/timer-updates/" + gameId, DelayedGameSession.getTimers());
-                messagingTemplate.convertAndSend("/topic/spectator-count/" + gameId, Map.of("count", DelayedGameSession.getSpectatorIds().size()));
+        try {
+            if (delayedSession != null) {
+                messagingTemplate.convertAndSend("/topic/spectator-game-state/" + gameId, delayedSession.getGameState());
+                messagingTemplate.convertAndSend("/topic/timer-updates/" + gameId, delayedSession.getTimers());
+                int spectatorCount = delayedSession.getSpectatorIds() == null ? 0 : delayedSession.getSpectatorIds().size();
+                messagingTemplate.convertAndSend("/topic/spectator-count/" + gameId, Map.of("count", spectatorCount));
             }
-        }
-        catch(Exception e){
-            System.err.println("Delayed Session creation failed: " + e.getMessage());
+        } catch (Exception e) {
+            System.err.println("Delayed Session publish failed: " + e.getMessage());
         }
         return gameState;
     }

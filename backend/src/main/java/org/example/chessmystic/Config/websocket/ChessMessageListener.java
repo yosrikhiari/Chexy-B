@@ -74,11 +74,33 @@ public class ChessMessageListener {
     public void handleTimerUpdate(Object timerData) {
         try {
             logger.info("Received Timer Update: {}", timerData);
-            messagingTemplate.convertAndSend("/topic/timer-Updates", timerData);
+            messagingTemplate.convertAndSend("/topic/timer-updates/{gameId}", timerData);
         } catch (Exception e) {
             logger.error("Error handling timer update: {}", e.getMessage(), e);
         }
     }
+
+    @RabbitListener(queues = RabbitMQConfig.GAME_STATE_UPDATE, containerFactory = "messageListenerContainer")
+    public void handleGameStateUpdate(Object gameStateUpdatedata) {
+        try {
+            logger.info("Received GameState Update: {}", gameStateUpdatedata);
+            messagingTemplate.convertAndSend("/topic/spectator-game-state/{gameId}", gameStateUpdatedata);
+        } catch (Exception e) {
+            logger.error("Error handling timer update: {}", e.getMessage(), e);
+        }
+    }
+
+    @RabbitListener(queues = RabbitMQConfig.SPECTATOR_COUNT, containerFactory = "messageListenerContainer")
+    public void handleSpectatorCountUpdate(Object Count) {
+        try {
+            logger.info("Received GameState Update: {}", Count);
+            messagingTemplate.convertAndSend("/topic/spectator-game-state/{gameId}", Count);
+        } catch (Exception e) {
+            logger.error("Error handling timer update: {}", e.getMessage(), e);
+        }
+    }
+
+
 
     @RabbitListener(queues = RabbitMQConfig.MATCHMAKING_QUEUE, containerFactory = "messageListenerContainer")
     public void handleMatchmakingUpdate(Object matchmakingData) {

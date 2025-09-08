@@ -56,6 +56,20 @@ public class RabbitMQMessageService {
         }
     }
 
+    public void sendGameStateUpdate(String gameId, Object gameStateUpdatedata){
+        try{
+            String routingKey = RabbitMQConfig.GAME_STATE_UPDATE_RK + "." + gameId;
+            rabbitTemplate.convertAndSend(
+                    RabbitMQConfig.CHESS_EXCHANGE,
+                    routingKey,
+                    gameStateUpdatedata);
+            logger.debug("Timer update sent for game: {}", gameId);
+        }
+        catch (Exception e) {
+            logger.error(gameId,"   ",e.getMessage());
+        }
+    }
+
     public void sendMatchmakingUpdate(String playerId, Object matchmakingUpdate){
         try{
             String routingKey = RabbitMQConfig.MATCHMAKING_RK + "." + playerId;
