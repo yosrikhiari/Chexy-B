@@ -127,7 +127,7 @@ public class RealtimeService implements IRealtimeService {
      * @return A copy of the game session with delayed move history, or null if not enough moves
      */
 
-    public static <GameTimers> GameSession createTimeDelayedGameSession(String gameId, Duration delay) {
+    public static GameSession createTimeDelayedGameSession(String gameId, Duration delay) {
         GameSession original = gameSessionService.findById(gameId)
                 .orElseThrow(() -> new IllegalArgumentException("Game session not found"));
 

@@ -51,7 +51,7 @@ public class GameOrchestrationService {
         // Add more detailed debugging
         System.out.println("Searching for game session with ID: " + gameId);
         var session = gameSessionService.findById(gameId);
-        
+
         if (session.isEmpty()) {
             System.err.println("Game session not found for ID: " + gameId);
             System.err.println("Available game sessions in database:");
@@ -60,20 +60,20 @@ public class GameOrchestrationService {
                 var allSessions = gameSessionRepository.findAll();
                 System.err.println("Total game sessions in database: " + allSessions.size());
                 allSessions.forEach(s -> System.err.println("  - Game ID: " + s.getGameId() + ", Status: " + s.getStatus() + ", Created: " + s.getCreatedAt()));
-                
+
                 // Also try to find by partial match
                 System.err.println("Searching for similar game IDs...");
                 allSessions.stream()
-                    .filter(s -> s.getGameId().contains(gameId.substring(0, 8)))
-                    .forEach(s -> System.err.println("  - Similar Game ID: " + s.getGameId()));
-                    
+                        .filter(s -> s.getGameId().contains(gameId.substring(0, 8)))
+                        .forEach(s -> System.err.println("  - Similar Game ID: " + s.getGameId()));
+
             } catch (Exception e) {
                 System.err.println("Could not retrieve game sessions for debugging: " + e.getMessage());
                 e.printStackTrace();
             }
             throw new IllegalArgumentException("Game session not found for ID: " + gameId);
         }
-        
+
         var gameSession = session.get();
         System.out.println("Game session retrieved successfully: " + gameSession.getGameId());
 
@@ -103,7 +103,7 @@ public class GameOrchestrationService {
             System.err.println("GameState is null!");
             throw new IllegalArgumentException("GameState is null");
         }
-        
+
         Piece[][] board = gameSession.getBoard();
         if (board == null) {
             System.err.println("Board is null!");
@@ -184,25 +184,27 @@ public class GameOrchestrationService {
         System.out.println("Game session saved successfully");
 
         System.out.println("Cleaning up spectator sessions...");
-        if (gameSessionRepository.findById("SpecSession-"+gameSession.getGameId()).isPresent()) {
-            gameSessionRepository.removeByGameId("SpecSession-"+gameSession.getGameId());
+        if (gameSessionRepository.findById("SpecSession-" + gameSession.getGameId()).isPresent()) {
+            gameSessionRepository.removeByGameId("SpecSession-" + gameSession.getGameId());
         }
 
         System.out.println("Creating delayed game session...");
         GameSession delayedSession = null;
+        GameSession delayed = null;
         try {
             Duration spectatorDelay = Duration.ofMinutes(2);
-            GameSession delayed = RealtimeService.createTimeDelayedGameSession(gameId, spectatorDelay);
-            if (delayed != null) {
-                gameSessionService.saveSession(delayed);
-                messagingTemplate.convertAndSend("/topic/spectator-game-state/" + gameId, delayed.getGameState());
-                messagingTemplate.convertAndSend("/topic/timer-updates/" + gameId, delayed.getTimers());
-            } else {
-                System.out.println("No delayed game session needed (not enough moves)");
-            }
+            delayed = RealtimeService.createTimeDelayedGameSession(gameId, spectatorDelay);
         } catch (Exception e) {
             System.err.println("Failed to create delayed game session: " + e.getMessage());
             e.printStackTrace();
+        }
+
+        if (delayed != null) {
+            gameSessionService.saveSession(delayed);
+            messagingTemplate.convertAndSend("/topic/spectator-game-state/" + gameId, delayed.getGameState());
+            messagingTemplate.convertAndSend("/topic/timer-updates/" + gameId, delayed.getTimers());
+        } else {
+            System.out.println("No delayed game session needed (not enough moves)");
         }
 
         System.out.println("Broadcasting timer update...");
