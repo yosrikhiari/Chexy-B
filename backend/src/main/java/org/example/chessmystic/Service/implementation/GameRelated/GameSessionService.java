@@ -594,12 +594,17 @@ public class GameSessionService implements IGameSessionService {
     @Transactional
     @Override
     public void isJoinedSpectating(String gameId, String playerId) {
-        GameSession session = gameSessionRepository.findById(gameId)
+        var session = gameSessionRepository.findById(gameId)
                 .orElseThrow(() -> new RuntimeException("Game session not found with id: " + gameId));
-        if (session.isAllowSpectators()){
-            session.getSpectatorIds().add(playerId);
-            gameSessionRepository.save(session);
+        if (!session.isAllowSpectators()) return;
+
+        if (session.getStartedAt() == null ||
+                java.time.LocalDateTime.now().isBefore(session.getStartedAt().plusMinutes(2))) {
+            throw new RuntimeException("Spectating not available yet. Please wait 2 minutes after game start.");
         }
+
+        session.getSpectatorIds().add(playerId);
+        gameSessionRepository.save(session);
     }
 
     @Transactional
@@ -610,6 +615,7 @@ public class GameSessionService implements IGameSessionService {
         if (session.isAllowSpectators()){
             session.getSpectatorIds().remove(playerId);
         }
+        gameSessionRepository.save(session);
     }
 
     @Transactional

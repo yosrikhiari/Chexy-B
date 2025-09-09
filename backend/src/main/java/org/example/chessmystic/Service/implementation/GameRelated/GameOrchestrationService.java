@@ -189,7 +189,6 @@ public class GameOrchestrationService {
         }
 
         System.out.println("Creating delayed game session...");
-        GameSession delayedSession = null;
         GameSession delayed = null;
         try {
             Duration spectatorDelay = Duration.ofMinutes(2);
@@ -211,15 +210,6 @@ public class GameOrchestrationService {
         timerWebSocketController.broadcastTimerUpdate(gameId, gameSession);
 
         System.out.println("Move execution completed successfully");
-
-        try {
-            if (delayedSession != null) {
-                messagingTemplate.convertAndSend("/topic/spectator-game-state/" + gameId, delayedSession.getGameState());
-                messagingTemplate.convertAndSend("/topic/timer-updates/" + gameId, delayedSession.getTimers());
-            }
-        } catch (Exception e) {
-            System.err.println("Delayed Session publish failed: " + e.getMessage());
-        }
         return gameState;
     }
 

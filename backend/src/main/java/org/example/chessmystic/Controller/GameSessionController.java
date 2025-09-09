@@ -6,6 +6,7 @@ import org.example.chessmystic.Models.GameStateandFlow.GameStatus;
 import org.example.chessmystic.Models.Tracking.GameSession;
 import org.example.chessmystic.Models.UIUX.TieResolutionOption;
 import org.example.chessmystic.Service.implementation.GameRelated.MatchmakingService;
+import org.example.chessmystic.Service.implementation.GameRelated.RealtimeService;
 import org.example.chessmystic.Service.interfaces.GameRelated.IGameSessionService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -51,9 +52,15 @@ public class GameSessionController {
         try {
             Optional<GameSession> session = gameSessionService.findById(gameId);
             if (session.isPresent()) {
+                if (gameId.startsWith("SpecSession-")) {
+                    String rawId = gameId.substring("SpecSession-".length());
+                    var delayed = RealtimeService.createTimeDelayedGameSession(rawId, java.time.Duration.ofMinutes(2));
+                    return ResponseEntity.ok(delayed);
+                }
                 logger.info("Returning game session for gameId {}: {}", gameId, session.get());
                 return ResponseEntity.ok(session.get());
             }
+
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", "Game session not found"));
         } catch (Exception e) {

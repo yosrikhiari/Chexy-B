@@ -142,6 +142,8 @@ public class RealtimeService implements IRealtimeService {
                 .sorted(Comparator.comparingInt(PlayerAction::getSequenceNumber)) // safe if sequence is consistent
                 .toList();
 
+
+        GameSession delayed = new GameSession();
         // Keep only actions with timestamp <= cutoff
         List<PlayerAction> visibleActions = actions.stream()
                 .filter(a -> a.getTimestamp() != null && a.getTimestamp().atZone(ZoneId.systemDefault()).toInstant().isBefore(cutoff.plusMillis(1)))
@@ -149,7 +151,18 @@ public class RealtimeService implements IRealtimeService {
 
         // 1) Reconstruct board by applying visibleActions starting from standard board
         Piece[][] delayedBoard = gameSessionService.initializeStandardChessBoard();
-        // Apply visibleActions similarly to your existing switch(a.getActionType()) logic
+        for (PlayerAction a : visibleActions) {
+            int fr = a.getFromX(), fc = a.getFromY();
+            int tr = a.getToX(), tc = a.getToY();
+            Piece moving = delayedBoard[fr][fc];
+
+
+            // handle null safety and action types here
+            delayedBoard[fr][fc] = null;
+            delayedBoard[tr][tc] = moving;
+            // replicate special-move handling used in live path
+        }
+        delayed.setBoard(delayedBoard);        // Apply visibleActions similarly to your existing switch(a.getActionType()) logic
         // (reuse your reconstruction code from createDelayedGameSession)
 
         // 2) Compute turn at cutoff
@@ -175,7 +188,7 @@ public class RealtimeService implements IRealtimeService {
                 .build();
 
         // 5) Build delayed session
-        GameSession delayed = new GameSession();
+
         delayed.setGameId("SpecSession-" + original.getGameId());
         delayed.setWhitePlayer(original.getWhitePlayer());
         delayed.setBlackPlayer(original.getBlackPlayer());

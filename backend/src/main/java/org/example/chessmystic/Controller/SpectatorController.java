@@ -60,14 +60,14 @@ public class SpectatorController {
     @PostMapping("/spectator/broadcast-timer/{gameId}")
     public ResponseEntity<?> broadcastTimerUpdate(@PathVariable String gameId) {
         try {
-            GameSession session = gameSessionService.findById(gameId).orElse(null);
+            GameSession session = gameSessionService.findById("SpecSession-" + gameId).orElse(null); // CHANGE TO DELAYED
             if (session != null) {
-                String destination = "/topic/timer-updates/" + gameId;
-                messagingTemplate.convertAndSend(destination, session.getTimers());
+                String destination = "/topic/timer-updates/" + gameId; // spectator topic
+                messagingTemplate.convertAndSend(destination, session.getTimers()); // SEND DELAYED TIMERS
                 return ResponseEntity.ok(Map.of("message", "Timer update broadcasted"));
             }
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(Map.of("error", "Game session not found"));
+                    .body(Map.of("error", "Delayed spectator session not found"));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Failed to broadcast timer update"));
