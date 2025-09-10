@@ -263,6 +263,44 @@ public class GameSessionController {
         }
     }
 
+    @GetMapping("/{gameId}/spectate-availability")
+    public ResponseEntity<?> SpectacleAvailability(@PathVariable String gameId) {
+        try {
+            GameSession session = gameSessionService.findById(gameId)
+                    .orElseThrow(() -> new RuntimeException("Game session not found"));
+            if (!session.isAllowSpectators()) {
+                return ResponseEntity.ok(Map.of(
+                        "allowed", false,
+                        "secondsRemaining", 0,
+                        "message", "Spectating not allowed for this game"
+                ));
+            }
+
+            if (session.getStartedAt() == null) {
+                // Not started yet → full 120 seconds remain
+                return ResponseEntity.ok(Map.of(
+                        "allowed", false,
+                        "secondsRemaining", 120,
+                        "message", "Spectate not available until 2 minutes after game starts"
+                ));
+            }
+
+            long secondsElapsed = java.time.Duration.between(session.getStartedAt(), java.time.LocalDateTime.now()).getSeconds();
+            long rawRemaining = 120 - secondsElapsed;
+            long secondsRemaining = Math.max(0, rawRemaining);
+            boolean allowed = secondsRemaining <= 0;
+
+            return ResponseEntity.ok(Map.of(
+                    "allowed", allowed,
+                    "secondsRemaining", secondsRemaining,
+                    "message", allowed ? "Spectating is now available" : "Please wait " + secondsRemaining + " more seconds"
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to check spectate availability"));
+        }
+    }
+
     @GetMapping("/{gameId}/Spectators")
     public ResponseEntity<List<String>> getSpectators(@PathVariable String gameId) {
         try{
