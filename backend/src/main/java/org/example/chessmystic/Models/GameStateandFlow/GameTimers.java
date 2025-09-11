@@ -12,6 +12,9 @@ public class GameTimers {
     private PlayerTimer black;
     private int defaultTime;
 
+    // Optional server timestamp (ms since epoch) indicating when these timers are valid
+    private Long serverTimeMs;
+
 
 
 

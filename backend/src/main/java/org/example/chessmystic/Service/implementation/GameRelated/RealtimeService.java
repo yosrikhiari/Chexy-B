@@ -1,15 +1,13 @@
 package org.example.chessmystic.Service.implementation.GameRelated;
-
-import org.apache.commons.lang3.function.TriConsumer;
 import org.example.chessmystic.Models.GameStateandFlow.GameState;
 import org.example.chessmystic.Models.GameStateandFlow.GameTimers;
 import org.example.chessmystic.Models.GameStateandFlow.PlayerTimer;
 import org.example.chessmystic.Models.Interactions.PlayerAction;
 import org.example.chessmystic.Models.Tracking.GameHistory;
 import org.example.chessmystic.Models.Tracking.GameSession;
-import org.example.chessmystic.Models.chess.BoardPosition;
 import org.example.chessmystic.Models.chess.Piece;
 import org.example.chessmystic.Models.chess.PieceColor;
+import org.example.chessmystic.Repository.GameSessionRepository;
 import org.example.chessmystic.Repository.PlayerActionRepository;
 import org.example.chessmystic.Service.interfaces.GameRelated.IRealtimeService;
 import org.slf4j.Logger;
@@ -17,16 +15,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.scheduling.annotation.Scheduled;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 
 @Service
 public class RealtimeService implements IRealtimeService {
@@ -36,13 +31,15 @@ public class RealtimeService implements IRealtimeService {
     private static GameSessionService gameSessionService = null;
     static GameHistoryService gameHistoryService = null;
     private static PlayerActionRepository playerActionRepository = null;
+    private final GameSessionRepository gameSessionRepository;
 
     @Autowired
-    public RealtimeService(SimpMessagingTemplate messagingTemplate, GameSessionService gameSessionService, GameHistoryService gameHistoryService, PlayerActionRepository playerActionRepository) {
+    public RealtimeService(SimpMessagingTemplate messagingTemplate, GameSessionService gameSessionService, GameHistoryService gameHistoryService, PlayerActionRepository playerActionRepository, GameSessionRepository gameSessionRepository) {
         this.messagingTemplate = messagingTemplate;
         RealtimeService.gameSessionService = gameSessionService;
         RealtimeService.gameHistoryService = gameHistoryService;
         RealtimeService.playerActionRepository = playerActionRepository;
+        this.gameSessionRepository = gameSessionRepository;
     }
 
     @Override
@@ -65,45 +62,50 @@ public class RealtimeService implements IRealtimeService {
         // Defaults
         int defaultSeconds = session.getTimeControlMinutes() * 60;
         int incrementSeconds = session.getIncrementSeconds() != 0 ? session.getIncrementSeconds() : 0;
+        long defaultMs = defaultSeconds * 1000L;
+        long incrementMs = incrementSeconds * 1000L;
 
         // Start times
         Instant gameStart = session.getStartedAt() != null
                 ? session.getStartedAt().atZone(ZoneId.systemDefault()).toInstant()
                 : cutoff; // fallback if missing
 
-        // Timer state
-        int whiteLeft = defaultSeconds;
-        int blackLeft = defaultSeconds;
+        // Timer state (millisecond precision)
+        long whiteMsLeft = defaultMs;
+        long blackMsLeft = defaultMs;
         PieceColor active = PieceColor.white; // White starts
 
         // Walk through visible actions and subtract elapsed time from active player
         Instant lastTick = gameStart;
         for (PlayerAction a : visibleActions) {
             Instant t = a.getTimestamp().atZone(ZoneId.systemDefault()).toInstant();
-            long elapsed = Math.max(0, Duration.between(lastTick, t).getSeconds());
+            long elapsedMs = Math.max(0, Duration.between(lastTick, t).toMillis());
 
             if (active == PieceColor.white) {
-                whiteLeft = Math.max(0, whiteLeft - (int) elapsed);
+                whiteMsLeft = Math.max(0, whiteMsLeft - elapsedMs);
                 // apply increment to the player who just moved
-                whiteLeft = Math.min(defaultSeconds, whiteLeft + incrementSeconds);
+                whiteMsLeft = Math.min(defaultMs, whiteMsLeft + incrementMs);
                 active = PieceColor.black;
             } else {
-                blackLeft = Math.max(0, blackLeft - (int) elapsed);
-                blackLeft = Math.min(defaultSeconds, blackLeft + incrementSeconds);
+                blackMsLeft = Math.max(0, blackMsLeft - elapsedMs);
+                blackMsLeft = Math.min(defaultMs, blackMsLeft + incrementMs);
                 active = PieceColor.white;
             }
             lastTick = t;
         }
 
         // Account for the in-progress interval from lastTick to cutoff on the current active player
-        long tail = Math.max(0, Duration.between(lastTick, cutoff).getSeconds());
+        long tailMs = Math.max(0, Duration.between(lastTick, cutoff).toMillis());
         if (active == PieceColor.white) {
-            whiteLeft = Math.max(0, whiteLeft - (int) tail);
+            whiteMsLeft = Math.max(0, whiteMsLeft - tailMs);
         } else {
-            blackLeft = Math.max(0, blackLeft - (int) tail);
+            blackMsLeft = Math.max(0, blackMsLeft - tailMs);
         }
 
         // Compose timers
+        // Round to nearest second to avoid systematic bias (prevents ~1-2s apparent lag)
+        int whiteLeft = (int) Math.max(0, Math.round(whiteMsLeft / 1000.0));
+        int blackLeft = (int) Math.max(0, Math.round(blackMsLeft / 1000.0));
         var white = PlayerTimer.builder()
                 .timeLeft(whiteLeft)
                 .active(active == PieceColor.white)
@@ -117,6 +119,7 @@ public class RealtimeService implements IRealtimeService {
                 .defaultTime(defaultSeconds)
                 .white(white)
                 .black(black)
+                .serverTimeMs(Instant.now().toEpochMilli())
                 .build();
     }
 
@@ -226,5 +229,37 @@ public class RealtimeService implements IRealtimeService {
     public void sendToPlayer(String playerId, Object message) {
         logger.info("Sending message to player: {}", playerId);
         messagingTemplate.convertAndSendToUser(playerId, "/queue/messages", message);
+    }
+
+    /**
+     * Periodically recompute and broadcast delayed spectator timers and game state.
+     * Ensures spectators receive a consistent delayed stream that matches the
+     * move footprint and correct active clock.
+     */
+    @Scheduled(fixedRate = 1000)
+    public void broadcastDelayedSpectatorTick() {
+        try {
+            // Iterate over active original sessions that allow spectators
+            List<GameSession> activeSessions = gameSessionRepository.findByIsActiveTrue();
+            for (GameSession original : activeSessions) {
+                if (!original.isAllowSpectators()) continue;
+                // Skip broadcasting if there are no spectators subscribed
+                if (original.getSpectatorIds() == null || original.getSpectatorIds().isEmpty()) continue;
+
+                String rawId = original.getGameId();
+                // Build delayed snapshot at cutoff
+                GameSession delayed = createTimeDelayedGameSession(rawId, Duration.ofMinutes(2));
+
+                // Broadcast delayed timers to the spectator timer topic expected by the frontend
+                String timerTopic = "/topic/game/SpecSession-" + rawId + "/timer";
+                messagingTemplate.convertAndSend(timerTopic, delayed.getTimers());
+
+                // Optionally broadcast delayed game state for UI turn indicators
+                String stateTopic = "/topic/spectator-game-state/" + rawId;
+                messagingTemplate.convertAndSend(stateTopic, delayed.getGameState());
+            }
+        } catch (Exception e) {
+            logger.warn("Failed spectator delayed tick broadcast: {}", e.getMessage());
+        }
     }
 }
