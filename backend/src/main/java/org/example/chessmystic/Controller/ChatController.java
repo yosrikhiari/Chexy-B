@@ -99,4 +99,38 @@ public class ChatController {
             log.error("Error marking message as read: {}", e.getMessage(), e);
         }
     }
+
+    @MessageMapping("/chat/history")
+    public void getChatHistory(@Payload ChatHistoryRequest request) {
+        try {
+            log.info("Fetching chat history between {} and {}", request.getUserId1(), request.getUserId2());
+
+            List<ChatMessage> messages = chatService.getChatHistory(request.getUserId1(), request.getUserId2());
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("type", "CHAT_HISTORY");
+            response.put("friendId", request.getUserId2());
+            response.put("messages", messages);
+
+            // Send chat history back to the requester
+            messagingTemplate.convertAndSend(
+                    "/queue/chat.history." + request.getUserId1(),
+                    response
+            );
+        } catch (Exception e) {
+            log.error("Error fetching chat history: {}", e.getMessage(), e);
+
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Failed to fetch chat history");
+            errorResponse.put("timestamp", System.currentTimeMillis());
+
+            // Best-effort send to requester if available
+            if (request != null && request.getUserId1() != null) {
+                messagingTemplate.convertAndSend(
+                        "/queue/chat.history." + request.getUserId1(),
+                        errorResponse
+                );
+            }
+        }
+    }
 }

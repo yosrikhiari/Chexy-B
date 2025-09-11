@@ -603,8 +603,13 @@ public class GameSessionService implements IGameSessionService {
             throw new RuntimeException("Spectating not available yet. Please wait 2 minutes after game start.");
         }
 
-        session.getSpectatorIds().add(playerId);
-        gameSessionRepository.save(session);
+        if (session.getSpectatorIds() == null) {
+            session.setSpectatorIds(new java.util.ArrayList<>());
+        }
+        if (!session.getSpectatorIds().contains(playerId)) {
+            session.getSpectatorIds().add(playerId);
+            gameSessionRepository.save(session);
+        }
     }
 
     @Transactional
@@ -612,10 +617,12 @@ public class GameSessionService implements IGameSessionService {
     public void isLeftSpectating(String gameId, String playerId) {
         GameSession session = gameSessionRepository.findById(gameId)
                 .orElseThrow(() -> new RuntimeException("Game session not found with id: " + gameId));
-        if (session.isAllowSpectators()){
-            session.getSpectatorIds().remove(playerId);
+        if (session.isAllowSpectators() && session.getSpectatorIds() != null) {
+            boolean removed = session.getSpectatorIds().remove(playerId);
+            if (removed) {
+                gameSessionRepository.save(session);
+            }
         }
-        gameSessionRepository.save(session);
     }
 
     @Transactional

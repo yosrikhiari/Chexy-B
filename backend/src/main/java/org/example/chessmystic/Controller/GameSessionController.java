@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.util.*;
 
@@ -20,15 +21,18 @@ import static org.example.chessmystic.Service.implementation.GameRelated.GameSes
 
 @RestController
 @RequestMapping("/game-session")
+@CrossOrigin(originPatterns = "*", allowCredentials = "true")
 public class GameSessionController {
 
     private final IGameSessionService gameSessionService;
     private final MatchmakingService matchmakingService;
+    private final SimpMessagingTemplate messagingTemplate;
 
 
-    public GameSessionController(IGameSessionService gameSessionService, MatchmakingService matchmakingService) {
+    public GameSessionController(IGameSessionService gameSessionService, MatchmakingService matchmakingService, SimpMessagingTemplate messagingTemplate) {
         this.gameSessionService = gameSessionService;
         this.matchmakingService = matchmakingService;
+        this.messagingTemplate = messagingTemplate;
     }
 
     @PostMapping
@@ -248,7 +252,10 @@ public class GameSessionController {
     @PostMapping("/{gameId}/Spectate/join/{playerId}")
     public void joinSpectate(@PathVariable String gameId, @PathVariable String playerId) {
         try{
-            gameSessionService.isJoinedSpectating(gameId,playerId);
+            gameSessionService.isJoinedSpectating(gameId, playerId);
+            List<String> spectators = gameSessionService.getAllSpectators(gameId);
+            messagingTemplate.convertAndSend("/topic/spectator-count/" + gameId, Map.of("count", spectators.size()));
+            messagingTemplate.convertAndSend("/topic/spectator-list/" + gameId, Map.of("spectators", spectators));
         } catch (Exception e) {
             System.out.println(e);
         }
@@ -257,7 +264,10 @@ public class GameSessionController {
     @PostMapping("/{gameId}/Spectate/leave/{playerId}")
     public void leaveSpectate(@PathVariable String gameId, @PathVariable String playerId) {
         try{
-            gameSessionService.isLeftSpectating(gameId,playerId);
+            gameSessionService.isLeftSpectating(gameId, playerId);
+            List<String> spectators = gameSessionService.getAllSpectators(gameId);
+            messagingTemplate.convertAndSend("/topic/spectator-count/" + gameId, Map.of("count", spectators.size()));
+            messagingTemplate.convertAndSend("/topic/spectator-list/" + gameId, Map.of("spectators", spectators));
         } catch (Exception e) {
             System.out.println(e);
         }
