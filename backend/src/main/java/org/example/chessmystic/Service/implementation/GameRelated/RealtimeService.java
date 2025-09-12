@@ -7,6 +7,7 @@ import org.example.chessmystic.Models.Tracking.GameHistory;
 import org.example.chessmystic.Models.Tracking.GameSession;
 import org.example.chessmystic.Models.chess.Piece;
 import org.example.chessmystic.Models.chess.PieceColor;
+import org.example.chessmystic.Models.chess.PieceType;
 import org.example.chessmystic.Repository.GameSessionRepository;
 import org.example.chessmystic.Repository.PlayerActionRepository;
 import org.example.chessmystic.Service.interfaces.GameRelated.IRealtimeService;
@@ -157,13 +158,62 @@ public class RealtimeService implements IRealtimeService {
         for (PlayerAction a : visibleActions) {
             int fr = a.getFromX(), fc = a.getFromY();
             int tr = a.getToX(), tc = a.getToY();
+
             Piece moving = delayedBoard[fr][fc];
+            if (moving == null) {
+                // Defensive: skip malformed action
+                continue;
+            }
 
-
-            // handle null safety and action types here
+            // Move the piece by default
             delayedBoard[fr][fc] = null;
             delayedBoard[tr][tc] = moving;
-            // replicate special-move handling used in live path
+
+            // Replicate special-move handling used in live path
+            switch (a.getActionType()) {
+                case CASTLE_KINGSIDE: {
+                    // Rook moves from h-file to f-file on the same rank
+                    int rookFromCol = 7;
+                    int rookToCol = tc - 1;
+                    Piece rook = delayedBoard[tr][rookFromCol];
+                    if (rook != null) {
+                        delayedBoard[tr][rookFromCol] = null;
+                        delayedBoard[tr][rookToCol] = rook;
+                    }
+                    break;
+                }
+                case CASTLE_QUEENSIDE: {
+                    // Rook moves from a-file to d-file on the same rank
+                    int rookFromCol = 0;
+                    int rookToCol = tc + 1;
+                    Piece rook = delayedBoard[tr][rookFromCol];
+                    if (rook != null) {
+                        delayedBoard[tr][rookFromCol] = null;
+                        delayedBoard[tr][rookToCol] = rook;
+                    }
+                    break;
+                }
+                case EN_PASSANT: {
+                    // Remove the captured pawn behind the destination square
+                    int direction = moving.getColor() == PieceColor.white ? 1 : -1;
+                    int capturedRow = tr - direction;
+                    if (capturedRow >= 0 && capturedRow < 8) {
+                        delayedBoard[capturedRow][tc] = null;
+                    }
+                    break;
+                }
+                case PROMOTION: {
+                    // Promote pawn to queen (default promotion in current implementation)
+                    moving.setType(PieceType.QUEEN);
+                    break;
+                }
+                case DOUBLE_PAWN_PUSH:
+                case CAPTURE:
+                case NORMAL:
+                default:
+                    // Already handled by default move
+                    break;
+            }
         }
         delayed.setBoard(delayedBoard);        // Apply visibleActions similarly to your existing switch(a.getActionType()) logic
         // (reuse your reconstruction code from createDelayedGameSession)
