@@ -1,5 +1,6 @@
 package org.example.chessmystic.Service.interfaces.GameRelated;
 
+import org.example.chessmystic.Models.GameStateandFlow.GameEndReason;
 import org.example.chessmystic.Models.GameStateandFlow.GameMode;
 import org.example.chessmystic.Models.GameStateandFlow.GameStatus;
 import org.example.chessmystic.Models.Tracking.GameSession;
@@ -16,7 +17,7 @@ public interface IGameSessionService {
     GameSession startGame(String gameId);
 
     @Transactional
-    GameSession endGame(String gameId, String winnerId, boolean isDraw, TieResolutionOption tieOption);
+    GameSession endGame(String gameId, String winnerId, boolean isDraw, TieResolutionOption tieOption, GameEndReason reason);
 
     List<GameSession> findActiveGamesForPlayer(String playerId);
     List<GameSession> findAvailableGames();

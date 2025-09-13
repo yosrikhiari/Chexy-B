@@ -590,7 +590,8 @@ public class RPGGameService implements IRPGGameService {
                 gameState.getGameSessionId(),
                 victory ? Objects.requireNonNull(gameSession).getCurrentPlayerId() : null,
                 false,
-                null
+                null,
+                GameEndReason.checkmate
         );
     }
 

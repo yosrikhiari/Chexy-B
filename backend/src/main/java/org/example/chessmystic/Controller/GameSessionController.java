@@ -1,5 +1,6 @@
 package org.example.chessmystic.Controller;
 
+import org.example.chessmystic.Models.GameStateandFlow.GameEndReason;
 import org.example.chessmystic.Models.GameStateandFlow.GameMode;
 import org.example.chessmystic.Models.GameStateandFlow.GameState;
 import org.example.chessmystic.Models.GameStateandFlow.GameStatus;
@@ -118,9 +119,10 @@ public class GameSessionController {
     public ResponseEntity<?> endGame(@PathVariable String gameId,
                                      @RequestParam(required = false) String winnerId,
                                      @RequestParam(required = false, defaultValue = "false") boolean isDraw,
-                                     @RequestParam(required = false) TieResolutionOption tieOption) {
+                                     @RequestParam(required = false) TieResolutionOption tieOption,
+                                     @RequestParam(required = false) GameEndReason reason) {
         try {
-            GameSession session = gameSessionService.endGame(gameId, winnerId, isDraw, tieOption);
+            GameSession session = gameSessionService.endGame(gameId, winnerId, isDraw, tieOption, reason);
             return ResponseEntity.ok(session);
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));

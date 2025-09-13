@@ -1,6 +1,7 @@
 package org.example.chessmystic.Service.implementation.GameRelated;
 
 import org.example.chessmystic.Models.AISystem.AIStrategy;
+import org.example.chessmystic.Models.GameStateandFlow.GameEndReason;
 import org.example.chessmystic.Models.GameStateandFlow.GameMode;
 import org.example.chessmystic.Models.GameStateandFlow.GameStatus;
 import org.example.chessmystic.Models.Interactions.ActionType;
@@ -231,7 +232,7 @@ public class EnhancedRPGService implements IEnhancedRPGService {
                     .orElse(null);
             String winnerId = victory && gameSession != null ? gameSession.getCurrentPlayerId() : null;
 
-            gameSessionService.endGame(gameState.getGameSessionId(), winnerId, false, null);
+            gameSessionService.endGame(gameState.getGameSessionId(), winnerId, false, null, GameEndReason.checkmate);
         }
     }
 

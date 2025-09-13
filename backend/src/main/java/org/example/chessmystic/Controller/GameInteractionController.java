@@ -1,5 +1,6 @@
 package org.example.chessmystic.Controller;
 
+import org.example.chessmystic.Models.GameStateandFlow.GameEndReason;
 import org.example.chessmystic.Service.implementation.GameRelated.GameSessionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,7 +69,7 @@ public class GameInteractionController {
             if (accepted) {
                 // End the game as a draw (no points) on the backend
                 try {
-                    gameSessionService.endGame(gameId, null, true, null);
+                    gameSessionService.endGame(gameId, null, true, null, GameEndReason.tie_resolved);
                 } catch (Exception e) {
                     logger.warn("Failed to end game on draw acceptance; it may already be completed: {}", e.getMessage());
                 }

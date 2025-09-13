@@ -231,15 +231,15 @@ public class GameSessionService implements IGameSessionService {
 
     @Override
     @Transactional
-    public GameSession endGame(String gameId, String winnerId, boolean isDraw, TieResolutionOption tieOption) {
+    public GameSession endGame(String gameId, String winnerId, boolean isDraw, TieResolutionOption tieOption, GameEndReason reason) {
         GameSession session = gameSessionRepository.findById(gameId)
                 .orElseThrow(() -> new RuntimeException("Game session not found with id: " + gameId));
         GameSession Delayedsession = gameSessionRepository.findById("SpecSession-"+gameId)
                 .orElseThrow(() -> new RuntimeException("Delayed Game session not found with id: " + gameId));
-        
-        logger.info("endGame called for game {} - current status: {}, requested winnerId: {}, isDraw: {}", 
-                   gameId, session.getStatus(), winnerId, isDraw);
-        
+    
+        logger.info("endGame called for game {} - current status: {}, requested winnerId: {}, isDraw: {}, reason: {}",
+                gameId, session.getStatus(), winnerId, isDraw, reason);
+    
         if (session.getStatus() == GameStatus.COMPLETED) {
             logger.info("Game {} already completed, skipping update", gameId);
             return session;
@@ -253,19 +253,22 @@ public class GameSessionService implements IGameSessionService {
         Delayedsession.setStatus(GameStatus.COMPLETED);
         Delayedsession.setLastActivity(LocalDateTime.now());
         Delayedsession.setActive(false);
-
-        // Deactivate timers to prevent further updates
+    
         if (session.getTimers() != null) {
             session.getTimers().getWhite().setActive(false);
             session.getTimers().getBlack().setActive(false);
             Delayedsession.getTimers().getWhite().setActive(false);
             Delayedsession.getTimers().getBlack().setActive(false);
         }
-
-        GameResult result = buildGameResult(session, isDraw ? null : winnerId, isDraw, tieOption);
+    
+        GameResult result = buildGameResult(session, isDraw ? null : winnerId, isDraw, tieOption, reason);
         updatePlayerStats(session, winnerId, isDraw, result);
+        // AFTER stats are updated (streaks), apply ranked points on the backend
+        applyRankedPoints(session, winnerId, isDraw, result.getGameEndReason());
+    
         gameHistoryService.updateGameHistory(session.getGameHistoryId(), result, LocalDateTime.now());
         GameSession updatedSession = gameSessionRepository.save(session);
+    
         gameSessionRepository.save(Delayedsession);
         logger.info("Game ended: {} with status {}", gameId, updatedSession.getStatus());
 
@@ -282,6 +285,62 @@ public class GameSessionService implements IGameSessionService {
             logger.warn("Failed to broadcast game end event for {}: {}", gameId, ex.getMessage());
         }
         return updatedSession;
+    }
+
+    private void applyRankedPoints(GameSession session, String winnerId, boolean isDraw, GameEndReason endReason) {
+        // Only apply for ranked classic PvP; adjust if you also rank RPG
+        boolean isRPGMode = session.getGameMode() == GameMode.SINGLE_PLAYER_RPG ||
+                session.getGameMode() == GameMode.MULTIPLAYER_RPG;
+        boolean isRankedMatch = session.isRankedMatch(); // if you store a ranked flag; otherwise infer from context
+
+        if (!isRankedMatch) return;
+
+        List<String> playerIds = session.getPlayerIds().stream()
+                .filter(id -> !"BOT".equals(id))
+                .toList();
+
+        String loserId = null;
+        if (!isDraw && winnerId != null) {
+            loserId = playerIds.stream().filter(id -> !id.equals(winnerId)).findFirst().orElse(null);
+        }
+
+        for (String playerId : playerIds) {
+            PlayerProfile profile = userService.getOrCreatePlayerProfile(playerId);
+            PlayerGameStats stats = profile.getGameStats();
+            int currentStreak = stats != null ? stats.getCurrentStreak() : 0;
+
+            boolean isWinner = winnerId != null && winnerId.equals(playerId);
+            boolean isPlayerDraw = isDraw;
+
+            int basePoints;
+            int newStreak;
+
+            if (isWinner) {
+                basePoints = 15;
+                newStreak = currentStreak >= 0 ? currentStreak + 1 : 1;
+            } else if (isPlayerDraw) {
+                basePoints = 0; // optionally 5 if you can pass moveCount in
+                newStreak = 0;
+            } else {
+                basePoints = -8;
+                newStreak = currentStreak <= 0 ? currentStreak - 1 : -1;
+            }
+
+            int streakBonus = 0;
+            if (isWinner && newStreak > 1) {
+                streakBonus = Math.min((newStreak - 1) * 2, 10);
+            } else if (!isWinner && !isPlayerDraw && Math.abs(newStreak) > 1) {
+                streakBonus = -Math.min((Math.abs(newStreak) - 1), 5);
+            }
+
+            int totalDelta = basePoints + streakBonus;
+
+            userService.findById(playerId).ifPresent(user -> {
+                int currentPoints = user.getPoints();
+                user.setPoints(currentPoints + totalDelta);
+                userRepository.save(user);
+            });
+        }
     }
 
     @Scheduled(fixedRate = 1000) // Every second
@@ -319,14 +378,18 @@ public class GameSessionService implements IGameSessionService {
         }
     }
 
-    private GameResult buildGameResult(GameSession session, String winnerId, boolean isDraw, TieResolutionOption tieOption) {
+    private GameResult buildGameResult(GameSession session, String winnerId, boolean isDraw, TieResolutionOption tieOption, GameEndReason reason) {
         GameResult.GameResultBuilder resultBuilder = GameResult.builder()
                 .gameresultId(UUID.randomUUID().toString())
                 .gameid(session.getGameId());
-
-        if (winnerId != null) {
-            resultBuilder.winnerid(winnerId)
-                    .gameEndReason(GameEndReason.timeout);
+    
+        if (winnerId != null && !isDraw) {
+            resultBuilder.winnerid(winnerId);
+    
+            // Use provided reason when present; otherwise default to checkmate if a winner exists
+            GameEndReason endReason = (reason != null) ? reason : GameEndReason.checkmate;
+            resultBuilder.gameEndReason(endReason);
+    
             var winner = "BOT".equals(winnerId) ? null : userService.findById(winnerId).orElse(null);
             if (winner != null) {
                 resultBuilder.winnerName(winner.getFirstName() + " " + winner.getLastName())
@@ -339,17 +402,18 @@ public class GameSessionService implements IGameSessionService {
             resultBuilder.gameEndReason(GameEndReason.draw);
             if (tieOption != null && session.getGameMode() == GameMode.MULTIPLAYER_RPG) {
                 List<String> playerIds = session.getPlayerIds();
-                winnerId = playerIds.get(new Random().nextInt(playerIds.size()));
-                resultBuilder.winnerid(winnerId)
-                        .winner(session.getWhitePlayer().getUserId().equals(winnerId) ? PieceColor.white : PieceColor.black)
-                        .winnerName(userService.findById(winnerId).map(u -> u.getFirstName() + " " + u.getLastName()).orElse("Unknown"))
+                String resolvedWinnerId = playerIds.get(new Random().nextInt(playerIds.size()));
+                resultBuilder.winnerid(resolvedWinnerId)
+                        .winner(session.getWhitePlayer().getUserId().equals(resolvedWinnerId) ? PieceColor.white : PieceColor.black)
+                        .winnerName(userService.findById(resolvedWinnerId).map(u -> u.getFirstName() + " " + u.getLastName()).orElse("Unknown"))
                         .gameEndReason(GameEndReason.tie_resolved)
                         .tieResolutionOption(tieOption);
             }
         } else {
+            // No winner, not a draw: treat as draw to keep consistency
             resultBuilder.gameEndReason(GameEndReason.draw);
         }
-
+    
         return resultBuilder.build();
     }
 
@@ -375,6 +439,7 @@ public class GameSessionService implements IGameSessionService {
                         .winRate(0.0)
                         .currentStreak(0)
                         .build();
+                profile.setGameStats(stats);
                 profile.setGameStats(stats);
             }
 
