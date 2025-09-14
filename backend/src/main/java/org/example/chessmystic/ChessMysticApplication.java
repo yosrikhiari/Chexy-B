@@ -5,9 +5,11 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import io.github.cdimascio.dotenv.Dotenv;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.data.mongodb.config.EnableMongoAuditing;
+import org.springframework.retry.annotation.EnableRetry;
 
 @EnableScheduling
 @EnableMongoAuditing
+@EnableRetry
 @SpringBootApplication
 public class ChessMysticApplication {
 

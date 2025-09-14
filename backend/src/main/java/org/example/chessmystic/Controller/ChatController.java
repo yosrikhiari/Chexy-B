@@ -1,6 +1,6 @@
 package org.example.chessmystic.Controller;
 
-import org.example.chessmystic.Config.websocket.RabbitMQMessageService;
+import org.example.chessmystic.Config.RabbitMQ.RabbitMQMessageService;
 import org.example.chessmystic.Models.*;
 import org.example.chessmystic.Service.implementation.ChatService;
 import org.slf4j.Logger;

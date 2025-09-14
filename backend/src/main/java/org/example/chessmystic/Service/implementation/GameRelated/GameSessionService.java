@@ -29,6 +29,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import org.example.chessmystic.Service.implementation.GameEventProducer;
+import org.example.chessmystic.Models.KafkaEvents.GameStartEvent;
+import java.util.UUID;
 
 @Service
 public class GameSessionService implements IGameSessionService {
@@ -42,6 +45,9 @@ public class GameSessionService implements IGameSessionService {
     private final RPGGameStateRepository rpgGameStateRepository;
     private final TimerWebSocketController timerWebSocketController;
     private final SimpMessagingTemplate messagingTemplate;
+
+    @Autowired
+    private GameEventProducer gameEventProducer;
 
     @Autowired
     public GameSessionService(GameSessionRepository gameSessionRepository,
@@ -222,6 +228,30 @@ public class GameSessionService implements IGameSessionService {
 
         GameHistory gameHistory = gameHistoryService.createGameHistory(session);
         session.setGameHistoryId(gameHistory.getId());
+
+        try {
+            String opponentId = null;
+            if (session.getBlackPlayer() != null && !session.getBlackPlayer().isEmpty()) {
+                opponentId = session.getBlackPlayer().getFirst().getUserId();
+            }
+
+            GameStartEvent gameStartEvent = GameStartEvent.builder()
+                    .eventId(UUID.randomUUID().toString())
+                    .gameId(gameId)
+                    .playerId(session.getWhitePlayer().getUserId())
+                    .timestamp(System.currentTimeMillis())
+                    .eventType("GAME_START")
+                    .opponentId(opponentId)
+                    .gameMode(session.getGameMode().toString())
+                    .timeControlMinutes(session.getTimeControlMinutes())
+                    .openingDetected("UNKNOWN") // You can implement opening detection
+                    .build();
+
+            gameEventProducer.publishGameStartEvent(gameStartEvent);
+            logger.info("Game start event published to Kafka successfully");
+        } catch (Exception e) {
+            logger.error("Failed to publish game start event to Kafka: {}", e.getMessage());
+        }
 
         GameSession updatedSession = gameSessionRepository.save(session);
         timerWebSocketController.broadcastTimerUpdate(gameId, updatedSession);

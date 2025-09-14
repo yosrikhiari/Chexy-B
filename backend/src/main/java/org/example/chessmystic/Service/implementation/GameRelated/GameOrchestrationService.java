@@ -1,5 +1,9 @@
 package org.example.chessmystic.Service.implementation.GameRelated;
 
+import org.example.chessmystic.Models.KafkaEvents.*;
+import java.util.UUID;
+import java.time.LocalDateTime;
+import org.example.chessmystic.Config.RabbitMQ.RabbitMQMessageService;
 import org.example.chessmystic.Models.GameStateandFlow.GameState;
 import org.example.chessmystic.Models.GameStateandFlow.GameTimers;
 import org.example.chessmystic.Models.Interactions.ActionType;
@@ -8,6 +12,7 @@ import org.example.chessmystic.Models.chess.BoardPosition;
 import org.example.chessmystic.Models.chess.Piece;
 import org.example.chessmystic.Models.chess.PieceColor;
 import org.example.chessmystic.Controller.TimerWebSocketController;
+import org.example.chessmystic.Service.implementation.GameEventProducer;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.example.chessmystic.Repository.GameSessionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +25,12 @@ import java.util.Map;
 @Service
 public class GameOrchestrationService {
 
+
+    @Autowired
+    private GameEventProducer gameEventProducer;
+
+    @Autowired
+    private RabbitMQMessageService rabbitMQMessageService;
 
     private final ChessGameService chessGameService;
     private final PlayerActionService playerActionService;
@@ -183,6 +194,28 @@ public class GameOrchestrationService {
         gameSessionService.saveSession(gameSession);
         System.out.println("Game session saved successfully");
 
+        // Publish move event to Kafka
+        try {
+            MoveEvent moveEvent = createMoveEvent(gameId, playerId, move, gameState, gameSession, actionType, movingPiece, targetPiece);
+            gameEventProducer.publishMoveEvent(moveEvent);
+            System.out.println("Move event published to Kafka successfully");
+        } catch (Exception e) {
+            System.err.println("Failed to publish move event to Kafka: " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        // Check for game end and publish event
+        if (gameState.isGameOver() || gameState.isCheckmate()) {
+            try {
+                GameEndEvent gameEndEvent = createGameEndEvent(gameId, playerId, gameState, gameSession);
+                gameEventProducer.publishGameEndEvent(gameEndEvent);
+                System.out.println("Game end event published to Kafka successfully");
+            } catch (Exception e) {
+                System.err.println("Failed to publish game end event to Kafka: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+
         System.out.println("Cleaning up spectator sessions...");
         if (gameSessionRepository.findById("SpecSession-" + gameSession.getGameId()).isPresent()) {
             gameSessionRepository.removeByGameId("SpecSession-" + gameSession.getGameId());
@@ -217,7 +250,81 @@ public class GameOrchestrationService {
         return row >= 0 && row < 8 && col >= 0 && col < 8;
     }
 
+    private MoveEvent createMoveEvent(String gameId, String playerId, BoardPosition move,
+                                      GameState gameState, GameSession gameSession,
+                                      ActionType actionType, Piece movingPiece, Piece targetPiece) {
+        return MoveEvent.builder()
+                .eventId(UUID.randomUUID().toString())
+                .gameId(gameId)
+                .playerId(playerId)
+                .timestamp(System.currentTimeMillis())
+                .eventType("MOVE")
+                .fromRow(move.getRow())
+                .fromCol(move.getCol())
+                .toRow(move.getTorow())
+                .toCol(move.getTocol())
+                .pieceType(movingPiece.getType().toString())
+                .pieceColor(movingPiece.getColor().toString())
+                .isCapture(targetPiece != null)
+                .isCheck(gameState.isCheck())
+                .isCheckmate(gameState.isCheckmate())
+                .moveTimeMs(0) // You can calculate this if needed
+                .build();
+    }
 
+    private GameEndEvent createGameEndEvent(String gameId, String playerId, GameState gameState, GameSession gameSession) {
+        String winnerId = null;
+        String endReason = "UNKNOWN";
+
+        if (gameState.isCheckmate()) {
+            winnerId = gameState.getCurrentTurn() == PieceColor.white ?
+                    gameSession.getBlackPlayer().getFirst().getUserId() :
+                    gameSession.getWhitePlayer().getUserId();
+            endReason = "CHECKMATE";
+        } else if (gameState.isGameOver()) {
+            endReason = "GAME_OVER";
+        }
+
+        return GameEndEvent.builder()
+                .eventId(UUID.randomUUID().toString())
+                .gameId(gameId)
+                .playerId(playerId)
+                .timestamp(System.currentTimeMillis())
+                .eventType("GAME_END")
+                .endReason(endReason)
+                .winnerId(winnerId)
+                .totalMoves(gameState.getMoveCount())
+                .gameDurationMs(calculateGameDuration(gameSession))
+                .finalPosition(serializeBoard(gameSession.getBoard()))
+                .build();
+    }
+
+    private long calculateGameDuration(GameSession gameSession) {
+        if (gameSession.getStartedAt() != null) {
+            return java.time.Duration.between(
+                    gameSession.getStartedAt(),
+                    java.time.LocalDateTime.now()
+            ).toMillis();
+        }
+        return 0;
+    }
+
+    private String serializeBoard(Piece[][] board) {
+        // Simple board serialization - you can improve this
+        StringBuilder sb = new StringBuilder();
+        for (int row = 0; row < 8; row++) {
+            for (int col = 0; col < 8; col++) {
+                Piece piece = board[row][col];
+                if (piece != null) {
+                    sb.append(piece.getColor().toString().charAt(0))
+                            .append(piece.getType().toString().charAt(0));
+                } else {
+                    sb.append("--");
+                }
+            }
+        }
+        return sb.toString();
+    }
 
 
     private void printBoard(Piece[][] board) {
