@@ -1,4 +1,4 @@
-package org.example.chessmystic.Config.websocket;
+package org.example.chessmystic.Config.RabbitMQ;
 
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
