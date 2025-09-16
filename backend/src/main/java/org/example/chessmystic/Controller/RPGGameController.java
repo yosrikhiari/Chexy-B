@@ -4,7 +4,9 @@ import org.example.chessmystic.Models.Interactions.PlayerAction;
 import org.example.chessmystic.Models.Mechanics.RPGGameState;
 import org.example.chessmystic.Models.rpg.BoardEffect;
 import org.example.chessmystic.Models.Transactions.RPGModifier;
+import org.example.chessmystic.Models.Transactions.EquipmentItem;
 import org.example.chessmystic.Models.rpg.RPGPiece;
+import org.example.chessmystic.Models.rpg.SpecializationType;
 import org.example.chessmystic.Service.interfaces.GameRelated.IPlayerActionService;
 import org.example.chessmystic.Service.interfaces.GameRelated.IRPGGameService;
 import org.springframework.http.HttpStatus;
@@ -204,6 +206,114 @@ public class RPGGameController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Failed to purchase item", "message", e.getMessage()));
+        }
+    }
+
+    // NEW: MVP endpoints
+    @PostMapping("/specialization/{gameId}/{pieceId}")
+    public ResponseEntity<?> chooseSpecialization(@PathVariable String gameId,
+                                                  @PathVariable String pieceId,
+                                                  @RequestParam SpecializationType specialization,
+                                                  @RequestParam String playerId) {
+        try {
+            RPGGameState gameState = rpgGameService.chooseSpecialization(gameId, pieceId, specialization, playerId);
+            return ResponseEntity.ok(gameState);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to choose specialization", "message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/equip/{gameId}/{pieceId}")
+    public ResponseEntity<?> equipItem(@PathVariable String gameId,
+                                       @PathVariable String pieceId,
+                                       @RequestBody EquipmentItem item,
+                                       @RequestParam String playerId) {
+        try {
+            RPGGameState gameState = rpgGameService.equipItem(gameId, pieceId, item, playerId);
+            return ResponseEntity.ok(gameState);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to equip item", "message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/resolve-tie/{gameId}")
+    public ResponseEntity<?> resolveTie(@PathVariable String gameId,
+                                        @RequestParam String playerId,
+                                        @RequestParam String choice) {
+        try {
+            RPGGameState gameState = rpgGameService.resolveTie(gameId, playerId, choice);
+            return ResponseEntity.ok(gameState);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to resolve tie", "message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/quests/spawn/{gameId}")
+    public ResponseEntity<?> spawnQuests(@PathVariable String gameId,
+                                         @RequestParam String playerId) {
+        try {
+            RPGGameState gameState = rpgGameService.spawnQuests(gameId, playerId);
+            return ResponseEntity.ok(gameState);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to spawn quests", "message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/quests/accept/{gameId}/{questId}")
+    public ResponseEntity<?> acceptQuest(@PathVariable String gameId,
+                                         @PathVariable String questId,
+                                         @RequestParam String playerId) {
+        try {
+            RPGGameState gameState = rpgGameService.acceptQuest(gameId, questId, playerId);
+            return ResponseEntity.ok(gameState);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to accept quest", "message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/quests/complete/{gameId}/{questId}")
+    public ResponseEntity<?> completeQuest(@PathVariable String gameId,
+                                           @PathVariable String questId,
+                                           @RequestParam String playerId) {
+        try {
+            RPGGameState gameState = rpgGameService.completeQuest(gameId, questId, playerId);
+            return ResponseEntity.ok(gameState);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to complete quest", "message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/xp/{gameId}/{pieceId}")
+    public ResponseEntity<?> awardXp(@PathVariable String gameId,
+                                     @PathVariable String pieceId,
+                                     @RequestParam int xp,
+                                     @RequestParam String playerId) {
+        try {
+            RPGGameState gameState = rpgGameService.awardXp(gameId, pieceId, xp, playerId);
+            return ResponseEntity.ok(gameState);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to award XP", "message", e.getMessage()));
         }
     }
 

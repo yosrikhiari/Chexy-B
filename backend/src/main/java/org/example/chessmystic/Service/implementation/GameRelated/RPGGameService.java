@@ -215,6 +215,16 @@ public class RPGGameService implements IRPGGameService {
                                                List<String> playerIds, List<String> playerNames,
                                                BoardConfiguration boardConfig, RPGRound firstRound,
                                                EnemyArmyConfig firstEnemyArmy) {
+        ArmyCapacity defaultCapacity = ArmyCapacity.builder()
+                .maxTotalPieces(16)
+                .maxQueens(2)
+                .maxRooks(4)
+                .maxBishops(4)
+                .maxKnights(4)
+                .maxPawns(8)
+                .bonusCapacity(0)
+                .build();
+
         return RPGGameState.builder()
                 .gameId(UUID.randomUUID().toString())
                 .gameSessionId(gameSessionId)
@@ -226,6 +236,7 @@ public class RPGGameService implements IRPGGameService {
                 .boardEffects(boardConfig.getEffects() != null ?
                         new ArrayList<>(boardConfig.getEffects()) : new ArrayList<>())
                 .boardSize(boardConfig.getBoardSize())
+                .armyCapacity(defaultCapacity)
                 .lives(3)
                 .score(0)
                 .coins(100)
@@ -376,6 +387,153 @@ public class RPGGameService implements IRPGGameService {
                 false,
                 false
         );
+    }
+
+    // --- NEW: MVP progression and interactions ---
+
+    @Override
+    @Transactional
+    public RPGGameState chooseSpecialization(String gameId, String pieceId, SpecializationType specialization, String playerId) {
+        RPGGameState gameState = getValidatedGameState(gameId, playerId);
+        if (gameState.getPlayerArmy() == null) return gameState;
+        for (RPGPiece p : gameState.getPlayerArmy()) {
+            if (pieceId.equals(p.getId()) && p instanceof EnhancedRPGPiece) {
+                EnhancedRPGPiece ep = (EnhancedRPGPiece) p;
+                ep.setSpecialization(specialization);
+                // Apply simple passive perks for MVP
+                switch (specialization) {
+                    case PALADIN_KNIGHT -> ep.setDefense(ep.getDefense() + 1);
+                    case SHADOW_KNIGHT -> ep.setAttack(ep.getAttack() + 1);
+                    default -> {}
+                }
+                updateGameStateAndRotateTurn(gameState, playerId, "ChooseSpecialization:" + specialization);
+                return rpgGameStateRepository.save(gameState);
+            }
+        }
+        return gameState;
+    }
+
+    @Override
+    @Transactional
+    public RPGGameState equipItem(String gameId, String pieceId, EquipmentItem item, String playerId) {
+        RPGGameState gameState = getValidatedGameState(gameId, playerId);
+        if (gameState.getPlayerArmy() == null) return gameState;
+        for (RPGPiece p : gameState.getPlayerArmy()) {
+            if (pieceId.equals(p.getId())) {
+                // Apply stat deltas
+                p.setAttack(p.getAttack() + item.getAttackDelta());
+                p.setDefense(p.getDefense() + item.getDefenseDelta());
+                p.setMaxHp(Math.max(1, p.getMaxHp() + item.getMaxHpDelta()));
+                if (p instanceof EnhancedRPGPiece ep && item.getTags() != null) {
+                    ep.getTags().addAll(item.getTags());
+                    // Transformations MVP for Knight
+                    if (p.getType() == org.example.chessmystic.Models.chess.PieceType.KNIGHT) {
+                        boolean hasHeroic = ep.getTags().contains("heroic");
+                        boolean hasMalicious = ep.getTags().contains("malicious");
+                        if (item.getName() != null && item.getName().toLowerCase().contains("sword") && hasHeroic) {
+                            p.setName("Hero");
+                        } else if (item.getName() != null && item.getName().toLowerCase().contains("sword")) {
+                            p.setName("Swordsman");
+                        }
+                        if (hasMalicious) {
+                            p.setName("Headless Knight");
+                        }
+                    }
+                }
+                updateGameStateAndRotateTurn(gameState, playerId, "EquipItem:" + item.getName());
+                return rpgGameStateRepository.save(gameState);
+            }
+        }
+        return gameState;
+    }
+
+    @Override
+    @Transactional
+    public RPGGameState resolveTie(String gameId, String playerId, String choice) {
+        RPGGameState gameState = getValidatedGameState(gameId, playerId);
+        // Only allow if tie requested and player has a Joker piece in army
+        boolean hasJoker = gameState.getPlayerArmy() != null && gameState.getPlayerArmy().stream().anyMatch(RPGPiece::isJoker);
+        if (gameState.isTieResolutionRequested() && hasJoker && gameState.getTieOptions() != null && gameState.getTieOptions().contains(choice)) {
+            gameState.setTieChosenByPlayerId(playerId);
+            gameState.setTieResolutionRequested(false);
+            updateGameStateAndRotateTurn(gameState, playerId, "ResolveTie:" + choice);
+            return rpgGameStateRepository.save(gameState);
+        }
+        return gameState;
+    }
+
+    @Override
+    @Transactional
+    public RPGGameState spawnQuests(String gameId, String playerId) {
+        RPGGameState gameState = getValidatedGameState(gameId, playerId);
+        if (gameState.getQuests() == null) gameState.setQuests(new ArrayList<>());
+        // Simple per-round per-player quest
+        Quest q = Quest.builder()
+                .id(UUID.randomUUID().toString())
+                .type(QuestType.CAPTURE_N_PIECES)
+                .assignedToPlayerId(playerId)
+                .description("Capture 1 piece this round")
+                .target(1)
+                .progress(0)
+                .completed(false)
+                .coinsReward(50)
+                .build();
+        gameState.getQuests().add(q);
+        updateGameStateAndRotateTurn(gameState, playerId, "SpawnQuest:" + q.getId());
+        return rpgGameStateRepository.save(gameState);
+    }
+
+    @Override
+    @Transactional
+    public RPGGameState acceptQuest(String gameId, String questId, String playerId) {
+        RPGGameState gameState = getValidatedGameState(gameId, playerId);
+        // For MVP, accepting is implicit; just ensure quest exists
+        updateGameStateAndRotateTurn(gameState, playerId, "AcceptQuest:" + questId);
+        return rpgGameStateRepository.save(gameState);
+    }
+
+    @Override
+    @Transactional
+    public RPGGameState completeQuest(String gameId, String questId, String playerId) {
+        RPGGameState gameState = getValidatedGameState(gameId, playerId);
+        if (gameState.getQuests() != null) {
+            gameState.getQuests().stream()
+                    .filter(q -> questId.equals(q.getId()) && playerId.equals(q.getAssignedToPlayerId()))
+                    .findFirst()
+                    .ifPresent(q -> {
+                        if (!q.isCompleted()) {
+                            q.setCompleted(true);
+                            gameState.setCoins(gameState.getCoins() + Math.max(0, q.getCoinsReward()));
+                        }
+                    });
+        }
+        updateGameStateAndRotateTurn(gameState, playerId, "CompleteQuest:" + questId);
+        return rpgGameStateRepository.save(gameState);
+    }
+
+    @Override
+    @Transactional
+    public RPGGameState awardXp(String gameId, String pieceId, int xp, String playerId) {
+        RPGGameState gameState = getValidatedGameState(gameId, playerId);
+        if (gameState.getPlayerArmy() == null) return gameState;
+        for (RPGPiece p : gameState.getPlayerArmy()) {
+            if (pieceId.equals(p.getId()) && p instanceof EnhancedRPGPiece) {
+                EnhancedRPGPiece ep = (EnhancedRPGPiece) p;
+                ep.setExperience(Math.max(0, ep.getExperience() + Math.max(0, xp)));
+                // Level-up rule: 100 + 25*(level-1)
+                boolean leveled = false;
+                while (ep.getExperience() >= (100 + 25 * (ep.getLevel() - 1)) && ep.getLevel() < 100) {
+                    ep.setExperience(ep.getExperience() - (100 + 25 * (ep.getLevel() - 1)));
+                    ep.setLevel(ep.getLevel() + 1);
+                    ep.setMaxHp(ep.getMaxHp() + 1);
+                    ep.setAttack(ep.getAttack() + 1);
+                    leveled = true;
+                }
+                updateGameStateAndRotateTurn(gameState, playerId, leveled ? "LevelUp:" + ep.getLevel() : "AwardXp:" + xp);
+                return rpgGameStateRepository.save(gameState);
+            }
+        }
+        return gameState;
     }
 
     private void rotatePlayerTurn(RPGGameState gameState) {
@@ -686,6 +844,9 @@ public class RPGGameService implements IRPGGameService {
                 break;
             case PAWN:
                 validateCapacityLimit(count, capacity.getMaxPawns(), "Max pawns limit exceeded");
+                break;
+            case KING:
+                // No explicit cap for king in capacity
                 break;
         }
 

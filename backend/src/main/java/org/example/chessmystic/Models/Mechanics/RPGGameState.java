@@ -62,5 +62,9 @@ public class RPGGameState {
     private String shopStateId; // Link to current shop state if applicable
 
     private EnemyArmyConfig enemyArmyConfig; // camelCase for consistency
-
+    private java.util.List<Quest> quests;
+    private boolean tieResolutionRequested;
+    private java.util.List<String> tieOptions;
+    private String tieChosenByPlayerId;
+    private String musicCueId;
 }

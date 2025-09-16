@@ -3,7 +3,6 @@ package org.example.chessmystic.Models.rpg;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.*;
-import org.springframework.data.annotation.Id;
 
 @Getter
 @Setter
@@ -14,6 +13,9 @@ public class EnhancedRPGPiece extends RPGPiece {
 
     private String enhancedName;
     private int currentHp;
+    private SpecializationType specialization = SpecializationType.NONE;
+    private java.util.Set<WeaknessType> weaknesses = new java.util.HashSet<>();
+    private java.util.Set<String> tags = new java.util.HashSet<>();
 
     @Min(1)
     @Max(100)
