@@ -69,4 +69,20 @@ public interface IRPGGameService {
 
 	@Transactional
 	RPGGameState awardXp(String gameId, String pieceId, int xp, String playerId);
+
+	// NEW: Special mechanics
+	@Transactional
+	RPGGameState converseWithDreamer(String gameId, String pieceId, String prompt, String playerId);
+
+	@Transactional
+	RPGGameState preacherControl(String gameId, String preacherPieceId, String targetEnemyPieceId, String playerId);
+
+	@Transactional
+	RPGGameState triggerStatueEvent(String gameId, String playerId);
+
+	@Transactional
+	RPGGameState setMusicCue(String gameId, String cueId, String playerId);
+
+	@Transactional
+	RPGGameState updateWeaknesses(String gameId, String pieceId, java.util.Set<org.example.chessmystic.Models.rpg.WeaknessType> weaknesses, String playerId);
 }

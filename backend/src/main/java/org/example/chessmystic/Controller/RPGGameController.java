@@ -350,4 +350,83 @@ public class RPGGameController {
                     .body(Map.of("error", "Failed to retrieve round actions", "message", e.getMessage()));
         }
     }
+
+    // --- NEW: Special mechanics endpoints ---
+
+    @PostMapping("/dreamer/converse/{gameId}/{pieceId}")
+    public ResponseEntity<?> converseWithDreamer(@PathVariable String gameId,
+                                                 @PathVariable String pieceId,
+                                                 @RequestParam String prompt,
+                                                 @RequestParam String playerId) {
+        try {
+            RPGGameState gameState = rpgGameService.converseWithDreamer(gameId, pieceId, prompt, playerId);
+            return ResponseEntity.ok(gameState);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to converse with Dreamer", "message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/preacher/control/{gameId}/{preacherPieceId}/{targetEnemyPieceId}")
+    public ResponseEntity<?> preacherControl(@PathVariable String gameId,
+                                             @PathVariable String preacherPieceId,
+                                             @PathVariable String targetEnemyPieceId,
+                                             @RequestParam String playerId) {
+        try {
+            RPGGameState gameState = rpgGameService.preacherControl(gameId, preacherPieceId, targetEnemyPieceId, playerId);
+            return ResponseEntity.ok(gameState);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to execute preacher control", "message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/statue/trigger/{gameId}")
+    public ResponseEntity<?> triggerStatue(@PathVariable String gameId,
+                                           @RequestParam String playerId) {
+        try {
+            RPGGameState gameState = rpgGameService.triggerStatueEvent(gameId, playerId);
+            return ResponseEntity.ok(gameState);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to trigger statue event", "message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/music-cue/{gameId}")
+    public ResponseEntity<?> setMusicCue(@PathVariable String gameId,
+                                         @RequestParam String cueId,
+                                         @RequestParam String playerId) {
+        try {
+            RPGGameState gameState = rpgGameService.setMusicCue(gameId, cueId, playerId);
+            return ResponseEntity.ok(gameState);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to set music cue", "message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/weaknesses/{gameId}/{pieceId}")
+    public ResponseEntity<?> updateWeaknesses(@PathVariable String gameId,
+                                              @PathVariable String pieceId,
+                                              @RequestBody java.util.Set<org.example.chessmystic.Models.rpg.WeaknessType> weaknesses,
+                                              @RequestParam String playerId) {
+        try {
+            RPGGameState gameState = rpgGameService.updateWeaknesses(gameId, pieceId, weaknesses, playerId);
+            return ResponseEntity.ok(gameState);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to update weaknesses", "message", e.getMessage()));
+        }
+    }
 }

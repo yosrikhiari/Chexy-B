@@ -60,8 +60,12 @@ public class EnhancedRPGService implements IEnhancedRPGService {
     @Transactional
     @Override
     public CombatResult resolveCombat(EnhancedRPGPiece attacker, EnhancedRPGPiece defender, String gameId, String playerId) {
+        logger.info("Resolving combat for gameId: {}, playerId: {}", gameId, playerId);
         EnhancedGameState gameState = enhancedGameStateRepository.findById(gameId)
-                .orElseThrow(() -> new RuntimeException("Enhanced game state not found"));
+                .orElseThrow(() -> {
+                    logger.error("Enhanced game state not found for gameId: {}", gameId);
+                    return new RuntimeException("Enhanced game state not found for gameId: " + gameId);
+                });
 
         validatePlayerTurn(gameState, playerId);
 

@@ -6,6 +6,7 @@ import org.example.chessmystic.Models.GameStateandFlow.*;
 import org.example.chessmystic.Models.Interactions.ActionType;
 import org.example.chessmystic.Models.Mechanics.BoardConfiguration;
 import org.example.chessmystic.Models.Mechanics.RPGGameState;
+import org.example.chessmystic.Models.Mechanics.EnhancedGameState;
 import org.example.chessmystic.Models.Mechanics.RPGRound;
 import org.example.chessmystic.Models.Mechanics.RoundProgression;
 import org.example.chessmystic.Models.Tracking.*;
@@ -13,6 +14,7 @@ import org.example.chessmystic.Models.UserManagement.User;
 import org.example.chessmystic.Models.rpg.*;
 import org.example.chessmystic.Models.Transactions.*;
 import org.example.chessmystic.Repository.*;
+import org.example.chessmystic.Repository.EnhancedGameStateRepository;
 import org.example.chessmystic.Service.implementation.UserService;
 import org.example.chessmystic.Service.interfaces.GameRelated.IPlayerActionService;
 import org.example.chessmystic.Service.interfaces.GameRelated.IRPGGameService;
@@ -24,6 +26,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.*;
+
+// import org.example.chessmystic.Models.rpg.DreamerState;
 
 @Service
 public class RPGGameService implements IRPGGameService {
@@ -43,6 +47,7 @@ public class RPGGameService implements IRPGGameService {
     private final GameHistoryRepository gameHistoryRepository;
     private final GameResultRepository gameResultRepository;
     private final RoundProgressionRepository roundProgressionRepository;
+    private final EnhancedGameStateRepository enhancedGameStateRepository;
 
     @Autowired
     public RPGGameService(RPGGameStateRepository rpgGameStateRepository,
@@ -60,7 +65,8 @@ public class RPGGameService implements IRPGGameService {
                           GameResultRepository gameResultRepository,
                           RPGPieceRepository rpgPieceRepository,
                           RPGModifierRepository rpgModifierRepository,
-                          RoundProgressionRepository roundProgressionRepository) {
+                          RoundProgressionRepository roundProgressionRepository,
+                          EnhancedGameStateRepository enhancedGameStateRepository) {
         this.rpgGameStateRepository = rpgGameStateRepository;
         this.userService = userService;
         this.gameSessionService = gameSessionService;
@@ -75,6 +81,7 @@ public class RPGGameService implements IRPGGameService {
         this.gameHistoryRepository = gameHistoryRepository;
         this.gameResultRepository = gameResultRepository;
         this.roundProgressionRepository = roundProgressionRepository;
+        this.enhancedGameStateRepository = enhancedGameStateRepository;
     }
 
     @Override
@@ -112,17 +119,95 @@ public class RPGGameService implements IRPGGameService {
                 firstRound,
                 enemyConfig
         );
+        // Seed starter player army
+        List<RPGPiece> starterArmy = generateStarterArmy();
+        rpgGameState.setPlayerArmy(new ArrayList<>(starterArmy));
 
         if (enemyConfig.getPieces() != null && !enemyConfig.getPieces().isEmpty()) {
             rpgGameState.getEnemyArmyConfig().setPieces(new ArrayList<>(enemyConfig.getPieces()));
         }
 
         RPGGameState savedState = rpgGameStateRepository.save(rpgGameState);
+        logger.info("Saved RPG game state with ID: {}", savedState.getGameId());
+        
         updateGameSessionWithRpgState(gameSession, savedState);
         createGameHistory(gameSessionId, playerIds);
 
-        logger.info("Created new RPG game for session: {}", gameSessionId);
+        // Create corresponding EnhancedGameState so Enhanced combat APIs work and seed starter army
+        seedEnhancedGameState(savedState, starterArmy);
+
+        logger.info("Created new RPG game for session: {} with gameId: {}", gameSessionId, savedState.getGameId());
         return savedState;
+    }
+
+    private void seedEnhancedGameState(RPGGameState baseState, List<RPGPiece> starterArmyBase) {
+        // Cast starter army to enhanced for enhanced state
+        List<EnhancedRPGPiece> starterArmy = new ArrayList<>();
+        for (RPGPiece p : starterArmyBase) {
+            if (p instanceof EnhancedRPGPiece) starterArmy.add((EnhancedRPGPiece) p);
+        }
+        EnhancedGameState enhanced = new EnhancedGameState();
+        enhanced.setGameId(baseState.getGameId());
+        enhanced.setGameSessionId(baseState.getGameSessionId());
+        enhanced.setDifficulty(1);
+        enhanced.setEnemyArmy(new ArrayList<>());
+        enhanced.setAiStrategy(org.example.chessmystic.Models.AISystem.AIStrategy.BALANCED);
+        enhanced.setTeleportPortalsnumber(1);
+        enhanced.setRoundProgression(null);
+        enhanced.setViewportSize(null);
+        enhanced.setDragOffset(null);
+        // Inherit core RPG state fields
+        enhanced.setCurrentRound(baseState.getCurrentRound());
+        enhanced.setPlayerArmy(new ArrayList<>(starterArmy));
+        enhanced.setActiveModifiers(baseState.getActiveModifiers());
+        enhanced.setActiveBoardModifiers(baseState.getActiveBoardModifiers());
+        enhanced.setActiveCapacityModifiers(baseState.getActiveCapacityModifiers());
+        enhanced.setBoardEffects(baseState.getBoardEffects());
+        enhanced.setBoardSize(baseState.getBoardSize());
+        enhanced.setArmyCapacity(baseState.getArmyCapacity());
+        enhanced.setCompletedRounds(baseState.getCompletedRounds());
+        enhanced.setLives(baseState.getLives());
+        enhanced.setScore(baseState.getScore());
+        enhanced.setCoins(baseState.getCoins());
+        enhanced.setGameOver(baseState.isGameOver());
+        enhanced.setCurrentObjective(baseState.getCurrentObjective());
+        enhanced.setTurnsRemaining(baseState.getTurnsRemaining());
+        enhanced.setCreatedAt(baseState.getCreatedAt());
+        enhanced.setLastUpdated(baseState.getLastUpdated());
+        enhanced.setLastPlayerActivity(baseState.getLastPlayerActivity());
+        enhanced.setGameMode(baseState.getGameMode());
+        enhanced.setStatus(baseState.getStatus());
+        enhanced.setPlayerTurn(baseState.isPlayerTurn());
+        enhanced.setCurrentRoundConfigId(baseState.getCurrentRoundConfigId());
+        enhanced.setActionHistoryIds(baseState.getActionHistoryIds());
+        enhanced.setShopStateId(baseState.getShopStateId());
+        enhanced.setEnemyArmy(baseState.getEnemyArmyConfig() != null ? baseState.getEnemyArmyConfig().getPieces() : new ArrayList<>());
+        enhanced.setQuests(baseState.getQuests());
+        enhanced.setTieResolutionRequested(baseState.isTieResolutionRequested());
+        enhanced.setTieOptions(baseState.getTieOptions());
+        enhanced.setTieChosenByPlayerId(baseState.getTieChosenByPlayerId());
+        enhanced.setMusicCueId(baseState.getMusicCueId());
+
+        // Save with same id as RPG game so combat API uses rpgGameId
+        EnhancedGameState savedEnhanced = enhancedGameStateRepository.save(enhanced);
+        logger.info("Created Enhanced game state with ID: {} for RPG game: {}", savedEnhanced.getGameId(), baseState.getGameId());
+    }
+
+    private List<RPGPiece> generateStarterArmy() {
+        List<RPGPiece> army = new ArrayList<>();
+        EnhancedRPGPiece knight = new EnhancedRPGPiece(
+                new RPGPiece(UUID.randomUUID().toString(), org.example.chessmystic.Models.chess.PieceType.KNIGHT,
+                        org.example.chessmystic.Models.chess.PieceColor.white,
+                        "Knight", "Brave knight", null, 10, 10, 3, 2, Rarity.COMMON, false),
+                10, 1, 0);
+        EnhancedRPGPiece pawn = new EnhancedRPGPiece(
+                new RPGPiece(UUID.randomUUID().toString(), org.example.chessmystic.Models.chess.PieceType.PAWN,
+                        org.example.chessmystic.Models.chess.PieceColor.white,
+                        "Pawn", "Loyal pawn", null, 6, 6, 1, 1, Rarity.COMMON, false),
+                6, 1, 0);
+        army.add(knight);
+        army.add(pawn);
+        return army;
     }
 
     private void validateUserAndSession(String userId, String gameSessionId) {
@@ -530,6 +615,108 @@ public class RPGGameService implements IRPGGameService {
                     leveled = true;
                 }
                 updateGameStateAndRotateTurn(gameState, playerId, leveled ? "LevelUp:" + ep.getLevel() : "AwardXp:" + xp);
+                return rpgGameStateRepository.save(gameState);
+            }
+        }
+        return gameState;
+    }
+
+    @Override
+    @Transactional
+    public RPGGameState converseWithDreamer(String gameId, String pieceId, String prompt, String playerId) {
+        RPGGameState gameState = getValidatedGameState(gameId, playerId);
+        if (gameState.getPlayerArmy() == null) return gameState;
+        for (RPGPiece p : gameState.getPlayerArmy()) {
+            if (pieceId.equals(p.getId()) && p instanceof EnhancedRPGPiece) {
+                EnhancedRPGPiece ep = (EnhancedRPGPiece) p;
+                ep.setConversationPrompt(prompt);
+                // Simple rules MVP: contains positive words => INSPIRED; negative => DOUBTFUL; else DORMANT
+                String lower = prompt == null ? "" : prompt.toLowerCase();
+                if (lower.contains("hope") || lower.contains("brave") || lower.contains("dream")) {
+                    ep.setDreamerState(org.example.chessmystic.Models.rpg.DreamerState.INSPIRED);
+                } else if (lower.contains("fear") || lower.contains("doubt") || lower.contains("lose")) {
+                    ep.setDreamerState(org.example.chessmystic.Models.rpg.DreamerState.DOUBTFUL);
+                } else {
+                    ep.setDreamerState(org.example.chessmystic.Models.rpg.DreamerState.DORMANT);
+                }
+                updateGameStateAndRotateTurn(gameState, playerId, "DreamerConverse:" + ep.getDreamerState());
+                return rpgGameStateRepository.save(gameState);
+            }
+        }
+        return gameState;
+    }
+
+    @Override
+    @Transactional
+    public RPGGameState preacherControl(String gameId, String preacherPieceId, String targetEnemyPieceId, String playerId) {
+        RPGGameState gameState = getValidatedGameState(gameId, playerId);
+        if (gameState.getPlayerArmy() == null) return gameState;
+        for (RPGPiece p : gameState.getPlayerArmy()) {
+            if (preacherPieceId.equals(p.getId()) && p instanceof EnhancedRPGPiece) {
+                EnhancedRPGPiece ep = (EnhancedRPGPiece) p;
+                if (ep.getOncePerRunControlRemaining() == null || ep.getOncePerRunControlRemaining() <= 0) {
+                    throw new IllegalStateException("Preacher control already used");
+                }
+                ep.setOncePerRunControlRemaining(ep.getOncePerRunControlRemaining() - 1);
+                // MVP: Just record the intention; real control to be handled in move phase
+                updateGameStateAndRotateTurn(gameState, playerId, "PreacherControl:" + targetEnemyPieceId);
+                return rpgGameStateRepository.save(gameState);
+            }
+        }
+        return gameState;
+    }
+
+    @Override
+    @Transactional
+    public RPGGameState triggerStatueEvent(String gameId, String playerId) {
+        RPGGameState gameState = getValidatedGameState(gameId, playerId);
+        if (gameState.getQuests() == null) gameState.setQuests(new ArrayList<>());
+
+        List<String> allPlayers = gamesessionrepository.findById(gameState.getGameSessionId())
+                .map(GameSession::getPlayerIds)
+                .orElse(List.of(playerId));
+
+        Random rand = new Random();
+        for (String pid : allPlayers) {
+            Quest q = Quest.builder()
+                    .id(UUID.randomUUID().toString())
+                    .type(rand.nextBoolean() ? QuestType.SURVIVE_N_TURNS : QuestType.CAPTURE_N_PIECES)
+                    .assignedToPlayerId(pid)
+                    .description(rand.nextBoolean() ? "Survive 3 turns" : "Capture 1 piece")
+                    .target(rand.nextBoolean() ? 3 : 1)
+                    .progress(0)
+                    .completed(false)
+                    .coinsReward(50)
+                    .build();
+            gameState.getQuests().add(q);
+        }
+        updateGameStateAndRotateTurn(gameState, playerId, "StatueEvent:" + gameState.getCurrentRound());
+        return rpgGameStateRepository.save(gameState);
+    }
+
+    @Override
+    @Transactional
+    public RPGGameState setMusicCue(String gameId, String cueId, String playerId) {
+        RPGGameState gameState = getValidatedGameState(gameId, playerId);
+        gameState.setMusicCueId(cueId);
+        updateGameStateAndRotateTurn(gameState, playerId, "MusicCue:" + cueId);
+        return rpgGameStateRepository.save(gameState);
+    }
+
+    @Override
+    @Transactional
+    public RPGGameState updateWeaknesses(String gameId, String pieceId, java.util.Set<WeaknessType> weaknesses, String playerId) {
+        RPGGameState gameState = getValidatedGameState(gameId, playerId);
+        if (gameState.getPlayerArmy() == null) return gameState;
+        for (RPGPiece p : gameState.getPlayerArmy()) {
+            if (pieceId.equals(p.getId()) && p instanceof EnhancedRPGPiece) {
+                EnhancedRPGPiece ep = (EnhancedRPGPiece) p;
+                ep.setWeaknesses(weaknesses != null ? weaknesses : new java.util.HashSet<>());
+                // Derived tag: SEER if BLIND + CANT_SPEAK
+                if (ep.getWeaknesses().contains(WeaknessType.BLIND) && ep.getWeaknesses().contains(WeaknessType.CANT_SPEAK)) {
+                    ep.getTags().add("SEER");
+                }
+                updateGameStateAndRotateTurn(gameState, playerId, "UpdateWeaknesses:" + ep.getWeaknesses().size());
                 return rpgGameStateRepository.save(gameState);
             }
         }

@@ -17,6 +17,15 @@ public class EnhancedRPGPiece extends RPGPiece {
     private java.util.Set<WeaknessType> weaknesses = new java.util.HashSet<>();
     private java.util.Set<String> tags = new java.util.HashSet<>();
 
+    // Narrative and AI metadata
+    private String aiName;
+    private String loreSnippet;
+
+    // Special mechanics (opt-in per piece design)
+    private Integer oncePerRunControlRemaining; // For Preacher-like pieces
+    private DreamerState dreamerState; // For Dreamer pawn
+    private String conversationPrompt; // Last prompt that influenced Dreamer
+
     @Min(1)
     @Max(100)
     private int level;
