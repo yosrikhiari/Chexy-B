@@ -7,6 +7,7 @@ import org.example.chessmystic.Models.Transactions.RPGModifier;
 import org.example.chessmystic.Models.Transactions.EquipmentItem;
 import org.example.chessmystic.Models.rpg.RPGPiece;
 import org.example.chessmystic.Models.rpg.SpecializationType;
+import org.example.chessmystic.Models.rpg.AbilityId;
 import org.example.chessmystic.Service.interfaces.GameRelated.IPlayerActionService;
 import org.example.chessmystic.Service.interfaces.GameRelated.IRPGGameService;
 import org.springframework.http.HttpStatus;
@@ -348,6 +349,22 @@ public class RPGGameController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Failed to retrieve round actions", "message", e.getMessage()));
+        }
+    }
+    @PostMapping("/ability/{gameId}/{pieceId}")
+    public ResponseEntity<?> activateAbility(@PathVariable String gameId,
+                                             @PathVariable String pieceId,
+                                             @RequestParam AbilityId ability,
+                                             @RequestParam(required = false) String targetPieceId,
+                                             @RequestParam String playerId) {
+        try {
+            RPGGameState gameState = rpgGameService.activateAbility(gameId, pieceId, ability, targetPieceId, playerId);
+            return ResponseEntity.ok(gameState);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to activate ability", "message", e.getMessage()));
         }
     }
 

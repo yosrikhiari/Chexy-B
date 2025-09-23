@@ -158,7 +158,7 @@ public class GameOrchestrationService {
         System.out.println("Getting player ID...");
         String playerId = movingPiece.getColor() == PieceColor.white
                 ? gameSession.getWhitePlayer().getUserId()
-                : gameSession.getBlackPlayer().getFirst().getUserId();
+                : (gameSession.getBlackPlayer() != null ? gameSession.getBlackPlayer().getUserId() : null);
         System.out.println("Player ID: " + playerId);
 
         System.out.println("Recording player action...");
@@ -278,7 +278,7 @@ public class GameOrchestrationService {
 
         if (gameState.isCheckmate()) {
             winnerId = gameState.getCurrentTurn() == PieceColor.white ?
-                    gameSession.getBlackPlayer().getFirst().getUserId() :
+                    (gameSession.getBlackPlayer() != null ? gameSession.getBlackPlayer().getUserId() : null) :
                     gameSession.getWhitePlayer().getUserId();
             endReason = "CHECKMATE";
         } else if (gameState.isGameOver()) {

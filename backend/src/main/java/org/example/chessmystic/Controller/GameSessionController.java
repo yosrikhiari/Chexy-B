@@ -2,7 +2,6 @@ package org.example.chessmystic.Controller;
 
 import org.example.chessmystic.Models.GameStateandFlow.GameEndReason;
 import org.example.chessmystic.Models.GameStateandFlow.GameMode;
-import org.example.chessmystic.Models.GameStateandFlow.GameState;
 import org.example.chessmystic.Models.GameStateandFlow.GameStatus;
 import org.example.chessmystic.Models.Tracking.GameSession;
 import org.example.chessmystic.Models.UIUX.TieResolutionOption;
@@ -49,6 +48,22 @@ public class GameSessionController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Failed to create game session", "message", "An unexpected error occurred"));
+        }
+    }
+
+    @GetMapping("/participants/{gameId}")
+    public ResponseEntity<?> listParticipants(@PathVariable String gameId) {
+        try {
+            return gameSessionService.findById(gameId)
+                    .map(session -> ResponseEntity.ok(Map.of(
+                            "host", session.getWhitePlayer(),
+                            "blackPlayer", session.getBlackPlayer(),
+                            "otherPlayers", Optional.ofNullable(session.getOtherPlayers()).orElseGet(java.util.ArrayList::new)
+                    )))
+                    .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Session not found")));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to list participants", "message", e.getMessage()));
         }
     }
 

@@ -85,10 +85,16 @@ public class GameSessionService implements IGameSessionService {
                 .lastSeen(LocalDateTime.now())
                 .build();
 
+        // Enforce invite-only for RPG modes
+        boolean isRpg = gameMode == GameMode.SINGLE_PLAYER_RPG || gameMode == GameMode.MULTIPLAYER_RPG;
+        if (isRpg) {
+            isPrivate = true;
+        }
+
         GameSession session = GameSession.builder()
                 .gameId(UUID.randomUUID().toString())
                 .whitePlayer(playerInfo)
-                .blackPlayer(new ArrayList<>())
+                .blackPlayer(null)
                 .gameMode(gameMode)
                 .isRankedMatch(gameMode == GameMode.TOURNAMENT || gameMode == GameMode.CLASSIC_MULTIPLAYER)
                 .isPrivate(isPrivate)
@@ -116,7 +122,7 @@ public class GameSessionService implements IGameSessionService {
                     .isConnected(true)
                     .lastSeen(LocalDateTime.now())
                     .build();
-            session.setBlackPlayer(List.of(botInfo));
+            session.setBlackPlayer(botInfo);
         }
         if (gameMode == GameMode.CLASSIC_SINGLE_PLAYER) {
             initializeGameState(session);
@@ -169,8 +175,15 @@ public class GameSessionService implements IGameSessionService {
             throw new RuntimeException("Player is already in the game");
         }
 
-        if (session.getGameMode() != GameMode.MULTIPLAYER_RPG && !session.getBlackPlayer().isEmpty()) {
+        // For non-RPG multiplayer: capacity 2; for MULTIPLAYER_RPG: cap 5 total players (1 white + 1 black + others)
+        if (session.getGameMode() != GameMode.MULTIPLAYER_RPG && session.getBlackPlayer() != null) {
             throw new RuntimeException("Game is already full");
+        }
+        if (session.getGameMode() == GameMode.MULTIPLAYER_RPG) {
+            int currentCount = 1 + (session.getBlackPlayer() == null ? 0 : 1) + (session.getOtherPlayers() == null ? 0 : session.getOtherPlayers().size());
+            if (currentCount >= 5) {
+                throw new RuntimeException("RPG session is full (max 5 players)");
+            }
         }
 
         var user = userService.findById(playerId)
@@ -186,10 +199,17 @@ public class GameSessionService implements IGameSessionService {
                 .lastSeen(LocalDateTime.now())
                 .build();
 
-        if (session.getBlackPlayer() == null) {
-            session.setBlackPlayer(new ArrayList<>());
+        if (session.getGameMode() == GameMode.MULTIPLAYER_RPG) {
+            if (session.getBlackPlayer() == null) {
+                // First joining player becomes black
+                session.setBlackPlayer(playerInfo);
+            } else {
+                if (session.getOtherPlayers() == null) session.setOtherPlayers(new ArrayList<>());
+                session.getOtherPlayers().add(playerInfo);
+            }
+        } else {
+            session.setBlackPlayer(playerInfo);
         }
-        session.getBlackPlayer().add(playerInfo);
         session.getPlayerLastSeen().put(playerId, LocalDateTime.now());
 
         return gameSessionRepository.save(session);
@@ -206,7 +226,7 @@ public class GameSessionService implements IGameSessionService {
                 throw new RuntimeException("White player not assigned for single-player game");
             }
         } else {
-            if (session.getWhitePlayer() == null || session.getBlackPlayer().isEmpty()) {
+            if (session.getWhitePlayer() == null || session.getBlackPlayer() == null) {
                 throw new RuntimeException("Cannot start game without at least two players");
             }
         }
@@ -230,10 +250,7 @@ public class GameSessionService implements IGameSessionService {
         session.setGameHistoryId(gameHistory.getId());
 
         try {
-            String opponentId = null;
-            if (session.getBlackPlayer() != null && !session.getBlackPlayer().isEmpty()) {
-                opponentId = session.getBlackPlayer().getFirst().getUserId();
-            }
+            String opponentId = session.getBlackPlayer() != null ? session.getBlackPlayer().getUserId() : null;
 
             GameStartEvent gameStartEvent = GameStartEvent.builder()
                     .eventId(UUID.randomUUID().toString())
@@ -319,9 +336,7 @@ public class GameSessionService implements IGameSessionService {
 
     private void applyRankedPoints(GameSession session, String winnerId, boolean isDraw, GameEndReason endReason) {
         // Only apply for ranked classic PvP; adjust if you also rank RPG
-        boolean isRPGMode = session.getGameMode() == GameMode.SINGLE_PLAYER_RPG ||
-                session.getGameMode() == GameMode.MULTIPLAYER_RPG;
-        boolean isRankedMatch = session.isRankedMatch(); // if you store a ranked flag; otherwise infer from context
+        boolean isRankedMatch = session.isRankedMatch();
 
         if (!isRankedMatch) return;
 
@@ -329,10 +344,7 @@ public class GameSessionService implements IGameSessionService {
                 .filter(id -> !"BOT".equals(id))
                 .toList();
 
-        String loserId = null;
-        if (!isDraw && winnerId != null) {
-            loserId = playerIds.stream().filter(id -> !id.equals(winnerId)).findFirst().orElse(null);
-        }
+        // loserId currently unused in backend points calc
 
         for (String playerId : playerIds) {
             PlayerProfile profile = userService.getOrCreatePlayerProfile(playerId);
@@ -574,8 +586,11 @@ public class GameSessionService implements IGameSessionService {
         if (session.getWhitePlayer() != null && session.getWhitePlayer().getUserId().equals(playerId)) {
             session.getWhitePlayer().setConnected(true);
             session.getWhitePlayer().setLastSeen(LocalDateTime.now());
-        } else if (session.getBlackPlayer().stream().anyMatch(p -> p.getUserId().equals(playerId))) {
-            session.getBlackPlayer().stream()
+        } else if (session.getBlackPlayer() != null && session.getBlackPlayer().getUserId().equals(playerId)) {
+            session.getBlackPlayer().setConnected(true);
+            session.getBlackPlayer().setLastSeen(LocalDateTime.now());
+        } else if (session.getOtherPlayers() != null && session.getOtherPlayers().stream().anyMatch(p -> p.getUserId().equals(playerId))) {
+            session.getOtherPlayers().stream()
                     .filter(p -> p.getUserId().equals(playerId))
                     .findFirst()
                     .ifPresent(p -> {

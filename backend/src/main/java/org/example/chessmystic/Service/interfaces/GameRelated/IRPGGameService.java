@@ -6,6 +6,7 @@ import org.example.chessmystic.Models.Transactions.RPGModifier;
 import org.example.chessmystic.Models.Transactions.EquipmentItem;
 import org.example.chessmystic.Models.rpg.RPGPiece;
 import org.example.chessmystic.Models.rpg.SpecializationType;
+import org.example.chessmystic.Models.rpg.AbilityId;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -60,6 +61,10 @@ public interface IRPGGameService {
 
 	@Transactional
 	RPGGameState spawnQuests(String gameId, String playerId);
+
+    // Ability activation
+    @Transactional
+    RPGGameState activateAbility(String gameId, String pieceId, AbilityId abilityId, String targetPieceId, String playerId);
 
 	@Transactional
 	RPGGameState acceptQuest(String gameId, String questId, String playerId);

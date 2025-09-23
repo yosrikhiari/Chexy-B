@@ -227,7 +227,7 @@ public class RPGGameService implements IRPGGameService {
     }
 
     private void validateMultiplayerSession(GameSession gameSession) {
-        if (gameSession.getBlackPlayer() == null || gameSession.getBlackPlayer().isEmpty()) {
+        if (gameSession.getBlackPlayer() == null) {
             throw new IllegalStateException("Multiplayer RPG requires at least one black player");
         }
     }
@@ -287,12 +287,18 @@ public class RPGGameService implements IRPGGameService {
         playerNames.add(user.getFirstName() + " " + user.getLastName());
 
         if (gameSession.getGameMode() == GameMode.MULTIPLAYER_RPG) {
-            gameSession.getBlackPlayer().stream()
-                    .filter(PlayerSessionInfo::isConnected)
-                    .forEach(player -> {
-                        playerIds.add(player.getUserId());
-                        playerNames.add(player.getDisplayName());
-                    });
+            if (gameSession.getBlackPlayer() != null && gameSession.getBlackPlayer().isConnected()) {
+                playerIds.add(gameSession.getBlackPlayer().getUserId());
+                playerNames.add(gameSession.getBlackPlayer().getDisplayName());
+            }
+            if (gameSession.getOtherPlayers() != null) {
+                gameSession.getOtherPlayers().stream()
+                        .filter(PlayerSessionInfo::isConnected)
+                        .forEach(player -> {
+                            playerIds.add(player.getUserId());
+                            playerNames.add(player.getDisplayName());
+                        });
+            }
         }
     }
 
@@ -491,8 +497,57 @@ public class RPGGameService implements IRPGGameService {
                     case SHADOW_KNIGHT -> ep.setAttack(ep.getAttack() + 1);
                     default -> {}
                 }
+                // Grant abilities for MVP
+                if (specialization == SpecializationType.PALADIN_KNIGHT) {
+                    ep.getAbilities().add(AbilityId.HEAL_2);
+                } else if (specialization == SpecializationType.SHADOW_KNIGHT) {
+                    ep.getAbilities().add(AbilityId.SHADOW_STEP);
+                }
                 updateGameStateAndRotateTurn(gameState, playerId, "ChooseSpecialization:" + specialization);
                 return rpgGameStateRepository.save(gameState);
+            }
+        }
+        return gameState;
+    }
+
+    @Override
+    @Transactional
+    public RPGGameState activateAbility(String gameId, String pieceId, AbilityId abilityId, String targetPieceId, String playerId) {
+        RPGGameState gameState = getValidatedGameState(gameId, playerId);
+        if (gameState.getPlayerArmy() == null) return gameState;
+        for (RPGPiece p : gameState.getPlayerArmy()) {
+            if (pieceId.equals(p.getId()) && p instanceof EnhancedRPGPiece) {
+                EnhancedRPGPiece ep = (EnhancedRPGPiece) p;
+                if (!ep.getAbilities().contains(abilityId)) {
+                    throw new IllegalStateException("Ability not known by this piece");
+                }
+                Integer cd = ep.getCooldowns().getOrDefault(abilityId, 0);
+                if (cd != null && cd > 0) {
+                    throw new IllegalStateException("Ability is on cooldown");
+                }
+
+                switch (abilityId) {
+                    case HEAL_2 -> {
+                        // Heal adjacent ally by 2 HP (MVP: targetPieceId must be in army)
+                        RPGPiece target = gameState.getPlayerArmy().stream()
+                                .filter(t -> t.getId().equals(targetPieceId))
+                                .findFirst().orElseThrow(() -> new IllegalArgumentException("Invalid target"));
+                        if (target instanceof EnhancedRPGPiece et) {
+                            int before = et.getCurrentHp();
+                            et.setCurrentHp(Math.min(et.getMaxHp(), et.getCurrentHp() + 2));
+                            ep.getCooldowns().put(abilityId, 1); // once per round cooldown
+                            updateGameStateAndRotateTurn(gameState, playerId, "Ability:HEAL_2:" + pieceId + ":" + targetPieceId + ":" + before + ">" + et.getCurrentHp());
+                            return rpgGameStateRepository.save(gameState);
+                        }
+                    }
+                    case SHADOW_STEP -> {
+                        // MVP: record intent only; movement resolution happens elsewhere
+                        ep.getTags().add("SHADOW_STEPPED");
+                        ep.getCooldowns().put(abilityId, 1);
+                        updateGameStateAndRotateTurn(gameState, playerId, "Ability:SHADOW_STEP:" + pieceId);
+                        return rpgGameStateRepository.save(gameState);
+                    }
+                }
             }
         }
         return gameState;
@@ -741,8 +796,8 @@ public class RPGGameService implements IRPGGameService {
 
     private boolean isPlayerActive(GameSession session, String playerId) {
         return (session.getWhitePlayer() != null && session.getWhitePlayer().getUserId().equals(playerId) && session.getWhitePlayer().isConnected()) ||
-                session.getBlackPlayer().stream()
-                        .anyMatch(p -> p.getUserId().equals(playerId) && p.isConnected());
+                (session.getBlackPlayer() != null && session.getBlackPlayer().getUserId().equals(playerId) && session.getBlackPlayer().isConnected()) ||
+                (session.getOtherPlayers() != null && session.getOtherPlayers().stream().anyMatch(p -> p.getUserId().equals(playerId) && p.isConnected()));
     }
 
     @Override

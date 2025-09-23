@@ -33,6 +33,9 @@ public class EnhancedRPGPiece extends RPGPiece {
     @Min(0)
     private int experience;
 
+    private java.util.Set<AbilityId> abilities = new java.util.HashSet<>();
+    private java.util.Map<AbilityId, Integer> cooldowns = new java.util.HashMap<>();
+
     // Constructor that properly calls super
     public EnhancedRPGPiece(RPGPiece basePiece, int currentHp, int level, int experience) {
         super(basePiece.getId(), basePiece.getType(), basePiece.getColor(),

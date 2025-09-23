@@ -31,7 +31,9 @@ public class GameSession {
 
     // PLAYER MANAGEMENT - Improved structure - that contains the id of the players
     private PlayerSessionInfo whitePlayer;
-    private List<PlayerSessionInfo> blackPlayer;
+    private PlayerSessionInfo blackPlayer;
+    // For RPG or extended modes: additional participants beyond white/black
+    private List<PlayerSessionInfo> otherPlayers;
 
     // GAME CONFIGURATION
     private GameMode gameMode;
@@ -75,8 +77,11 @@ public class GameSession {
         if (whitePlayer != null) {
             playerIds.add(whitePlayer.getUserId());
         }
-        if (blackPlayer != null && !blackPlayer.isEmpty()) {
-            for (PlayerSessionInfo player : blackPlayer) {
+        if (blackPlayer != null) {
+            playerIds.add(blackPlayer.getUserId());
+        }
+        if (otherPlayers != null && !otherPlayers.isEmpty()) {
+            for (PlayerSessionInfo player : otherPlayers) {
                 playerIds.add(player.getUserId());
             }
         }
@@ -88,9 +93,14 @@ public class GameSession {
             return whitePlayer;
         }
 
-        // Check black players
-        if (blackPlayer != null) {
-            return blackPlayer.stream()
+        // Check black player
+        if (blackPlayer != null && blackPlayer.isCurrentTurn()) {
+            return blackPlayer;
+        }
+
+        // Check other players
+        if (otherPlayers != null) {
+            return otherPlayers.stream()
                     .filter(PlayerSessionInfo::isCurrentTurn)
                     .findFirst()
                     .orElse(null);
@@ -113,14 +123,19 @@ public class GameSession {
             whitePlayer.setCurrentTurn(false);
         }
         if (blackPlayer != null) {
-            blackPlayer.forEach(player -> player.setCurrentTurn(false));
+            blackPlayer.setCurrentTurn(false);
+        }
+        if (otherPlayers != null) {
+            otherPlayers.forEach(player -> player.setCurrentTurn(false));
         }
 
         // Set the specified player's turn to true
         if (whitePlayer != null && whitePlayer.getUserId().equals(playerId)) {
             whitePlayer.setCurrentTurn(true);
-        } else if (blackPlayer != null) {
-            blackPlayer.stream()
+        } else if (blackPlayer != null && blackPlayer.getUserId().equals(playerId)) {
+            blackPlayer.setCurrentTurn(true);
+        } else if (otherPlayers != null) {
+            otherPlayers.stream()
                     .filter(player -> player.getUserId().equals(playerId))
                     .findFirst()
                     .ifPresent(player -> player.setCurrentTurn(true));
