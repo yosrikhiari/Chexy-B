@@ -1,13 +1,16 @@
 package org.example.chessmystic.Controller;
 
+import org.example.chessmystic.Models.GameStateandFlow.GameMode;
 import org.example.chessmystic.Models.Interactions.PlayerAction;
 import org.example.chessmystic.Models.Mechanics.RPGGameState;
+import org.example.chessmystic.Models.Tracking.GameSession;
 import org.example.chessmystic.Models.rpg.BoardEffect;
 import org.example.chessmystic.Models.Transactions.RPGModifier;
 import org.example.chessmystic.Models.Transactions.EquipmentItem;
 import org.example.chessmystic.Models.rpg.RPGPiece;
 import org.example.chessmystic.Models.rpg.SpecializationType;
 import org.example.chessmystic.Models.rpg.AbilityId;
+import org.example.chessmystic.Repository.GameSessionRepository;
 import org.example.chessmystic.Service.interfaces.GameRelated.IPlayerActionService;
 import org.example.chessmystic.Service.interfaces.GameRelated.IRPGGameService;
 import org.springframework.http.HttpStatus;
@@ -18,16 +21,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.example.chessmystic.Service.implementation.GameRelated.GameSessionService.logger;
+
 @RestController
 @RequestMapping("/rpg-game")
 public class RPGGameController {
 
     private final IRPGGameService rpgGameService;
     private final IPlayerActionService playerActionService;
+    private final GameSessionRepository gameSessionRepository;
 
-    public RPGGameController(IRPGGameService rpgGameService, IPlayerActionService playerActionService) {
+
+    public RPGGameController(IRPGGameService rpgGameService, IPlayerActionService playerActionService, GameSessionRepository gameSessionRepository) {
         this.rpgGameService = rpgGameService;
         this.playerActionService = playerActionService;
+        this.gameSessionRepository = gameSessionRepository;
     }
 
     @PostMapping
@@ -149,11 +157,76 @@ public class RPGGameController {
                                          @RequestParam int coinsToAdd,
                                          @RequestParam String playerId) {
         try {
+            // Add debug logging
+            logger.info("updateCoins called with gameId: {}, coinsToAdd: {}, playerId: {}",
+                    gameId, coinsToAdd, playerId);
+
+            // Validate inputs
+            if (gameId == null || gameId.trim().isEmpty()) {
+                logger.error("Invalid gameId: {}", gameId);
+                return ResponseEntity.badRequest().body(Map.of("error", "Game ID cannot be null or empty"));
+            }
+
+            if (playerId == null || playerId.trim().isEmpty()) {
+                logger.error("Invalid playerId: {}", playerId);
+                return ResponseEntity.badRequest().body(Map.of("error", "Player ID cannot be null or empty"));
+            }
+
+            // Check if game exists
+            Optional<RPGGameState> gameStateOpt = rpgGameService.findById(gameId);
+            if (gameStateOpt.isEmpty()) {
+                logger.error("Game not found: {}", gameId);
+                return ResponseEntity.badRequest().body(Map.of("error", "Game not found: " + gameId));
+            }
+
+            RPGGameState existingState = gameStateOpt.get();
+            logger.info("Found game state. Current coins: {}, isGameOver: {}",
+                    existingState.getCoins(), existingState.isGameOver());
+
+            // Check game session
+            Optional<GameSession> sessionOpt = gameSessionRepository.findById(existingState.getGameSessionId());
+            if (sessionOpt.isEmpty()) {
+                logger.error("Game session not found: {}", existingState.getGameSessionId());
+                return ResponseEntity.badRequest().body(Map.of("error", "Game session not found"));
+            }
+
+            GameSession session = sessionOpt.get();
+            logger.info("Found game session. PlayerIds: {}, CurrentPlayerId: {}",
+                    session.getPlayerIds(), session.getCurrentPlayerId());
+
+            // Check if player is in the game
+            if (!session.getPlayerIds().contains(playerId)) {
+                logger.error("Player {} not in game. Game players: {}", playerId, session.getPlayerIds());
+                return ResponseEntity.badRequest().body(Map.of("error", "Player not in this game: " + playerId));
+            }
+
+            // For single player RPG, skip turn validation
+            if (existingState.getGameMode() != GameMode.SINGLE_PLAYER_RPG) {
+                if (!session.getCurrentPlayerId().equals(playerId)) {
+                    logger.error("Not player's turn. Current: {}, Requested: {}",
+                            session.getCurrentPlayerId(), playerId);
+                    return ResponseEntity.badRequest().body(Map.of("error", "Not your turn: " + playerId));
+                }
+            }
+
             RPGGameState gameState = rpgGameService.updateCoins(gameId, coinsToAdd, playerId);
+            logger.info("Successfully updated coins. New total: {}", gameState.getCoins());
             return ResponseEntity.ok(gameState);
+
+        } catch (IllegalStateException e) {
+            logger.error("IllegalStateException in updateCoins: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", e.getMessage(), "type", "IllegalStateException"));
+        } catch (IllegalArgumentException e) {
+            logger.error("IllegalArgumentException in updateCoins: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", e.getMessage(), "type", "IllegalArgumentException"));
         } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+            logger.error("RuntimeException in updateCoins: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", e.getMessage(), "type", e.getClass().getSimpleName()));
         } catch (Exception e) {
+            logger.error("Unexpected error in updateCoins: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Failed to update coins", "message", e.getMessage()));
         }

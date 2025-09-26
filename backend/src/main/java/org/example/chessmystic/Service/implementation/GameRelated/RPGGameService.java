@@ -863,6 +863,23 @@ public class RPGGameService implements IRPGGameService {
         GameSession session = gameSessionRepository.findById(gameState.getGameSessionId())
                 .orElseThrow(() -> new GameSessionNotFoundException(gameState.getGameSessionId()));
 
+        // For single player RPG, be more lenient with player validation
+        if (gameState.getGameMode() == GameMode.SINGLE_PLAYER_RPG) {
+            // Only check if any player in session matches - don't require exact turn matching
+            boolean isPlayerInGame = session.getPlayerIds().contains(playerId) ||
+                    (session.getWhitePlayer() != null && session.getWhitePlayer().getUserId().equals(playerId)) ||
+                    (session.getBlackPlayer() != null && session.getBlackPlayer().getUserId().equals(playerId));
+
+            if (!isPlayerInGame) {
+                logger.error("Player {} not found in single player game. Session players: {}",
+                        playerId, session.getPlayerIds());
+                throw new PlayerNotInGameException(playerId);
+            }
+            // Skip turn validation for single player
+            return;
+        }
+
+        // Original multiplayer validation
         if (!session.getPlayerIds().contains(playerId)) {
             throw new PlayerNotInGameException(playerId);
         }
