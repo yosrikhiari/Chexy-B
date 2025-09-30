@@ -1184,4 +1184,44 @@ public class RPGGameService implements IRPGGameService {
             super("Max total army capacity exceeded: " + maxCapacity);
         }
     }
+
+    @Transactional
+    @Override
+    public RPGGameState trackKill(String gameId, String killerPieceId, String playerId) {
+        RPGGameState gameState = getValidatedGameState(gameId, playerId);
+
+        if (gameState.getPlayerArmy() == null) return gameState;
+
+        for (RPGPiece p : gameState.getPlayerArmy()) {
+            if (killerPieceId.equals(p.getId()) && p instanceof EnhancedRPGPiece) {
+                EnhancedRPGPiece ep = (EnhancedRPGPiece) p;
+
+                int currentLevel = ep.getLevel();
+                int killsNeeded = currentLevel; // Level 1 needs 1 kill, Level 2 needs 2 kills, etc.
+                int currentKills = (ep.getKillCount() != null ? ep.getKillCount() : 0) + 1;
+
+                ep.setKillCount(currentKills);
+
+                // Check for level up
+                if (currentKills >= killsNeeded) {
+                    ep.setLevel(currentLevel + 1);
+                    ep.setMaxHp(ep.getMaxHp() + 5);
+                    ep.setCurrentHp(ep.getMaxHp()); // Full heal
+                    ep.setAttack(ep.getAttack() + 2);
+                    ep.setDefense(ep.getDefense() + 1);
+                    ep.setKillCount(0); // Reset kill counter
+
+                    updateGameStateAndRotateTurn(gameState, playerId,
+                            "LevelUp:" + ep.getName() + ":Level" + ep.getLevel());
+                } else {
+                    updateGameStateAndRotateTurn(gameState, playerId,
+                            "Kill:" + ep.getName() + ":" + currentKills + "/" + killsNeeded);
+                }
+
+                return rpgGameStateRepository.save(gameState);
+            }
+        }
+
+        throw new IllegalArgumentException("Killer piece not found in player army: " + killerPieceId);
+    }
 }

@@ -33,6 +33,8 @@ public class EnhancedRPGPiece extends RPGPiece {
     @Min(0)
     private int experience;
 
+    private Integer killCount;
+
     private java.util.Set<AbilityId> abilities = new java.util.HashSet<>();
     private java.util.Map<AbilityId, Integer> cooldowns = new java.util.HashMap<>();
 
@@ -46,4 +48,6 @@ public class EnhancedRPGPiece extends RPGPiece {
         this.level = level;
         this.experience = experience;
     }
+
+
 }

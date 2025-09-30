@@ -519,4 +519,19 @@ public class RPGGameController {
                     .body(Map.of("error", "Failed to update weaknesses", "message", e.getMessage()));
         }
     }
+
+    @PostMapping("/kill/{gameId}/{killerPieceId}")
+    public ResponseEntity<?> trackKill(@PathVariable String gameId,
+                                       @PathVariable String killerPieceId,
+                                       @RequestParam String playerId) {
+        try {
+            RPGGameState gameState = rpgGameService.trackKill(gameId, killerPieceId, playerId);
+            return ResponseEntity.ok(gameState);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to track kill", "message", e.getMessage()));
+        }
+    }
 }

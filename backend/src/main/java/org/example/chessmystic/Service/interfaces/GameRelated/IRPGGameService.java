@@ -90,4 +90,7 @@ public interface IRPGGameService {
 
 	@Transactional
 	RPGGameState updateWeaknesses(String gameId, String pieceId, java.util.Set<org.example.chessmystic.Models.rpg.WeaknessType> weaknesses, String playerId);
+
+    @Transactional
+    RPGGameState trackKill(String gameId, String killerPieceId, String playerId);
 }
