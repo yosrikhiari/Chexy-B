@@ -147,11 +147,20 @@ public class EnhancedRPGService implements IEnhancedRPGService {
 
     // Helper methods
     private void validatePlayerTurn(EnhancedGameState gameState, String playerId) {
-        if (gamesessionrepository.findByEnhancedGameStateIdAndPlayerId(gameState.getGameId(), playerId) == null) {
+        GameSession session = gamesessionrepository.findById(gameState.getGameSessionId())
+                .orElseThrow(() -> new RuntimeException("Game session not found"));
+
+        if (!session.getPlayerIds().contains(playerId)) {
             throw new RuntimeException("Player " + playerId + " is not part of this game");
         }
-        var session = gamesessionrepository.findByEnhancedGameStateIdAndPlayerId(gameState.getGameId(), playerId);
-        if (session == null || session.getCurrentPlayerId() == null || !session.getCurrentPlayerId().equals(playerId)) {
+
+        // For single player RPG, skip turn validation
+        if (gameState.getGameMode() == GameMode.SINGLE_PLAYER_RPG) {
+            return;
+        }
+
+        // For multiplayer, check turn
+        if (!session.getCurrentPlayerId().equals(playerId)) {
             throw new RuntimeException("Not your turn");
         }
     }
