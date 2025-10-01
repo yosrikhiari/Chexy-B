@@ -399,7 +399,19 @@ public class RPGGameService implements IRPGGameService {
         int difficulty = calculateDifficulty(nextRound, difficultyMultiplier);
 
         BoardConfiguration boardConfig = getBoardConfiguration(nextRound, boardSize);
+
+
         EnemyArmyConfig enemyConfig = getEnemyConfiguration(nextRound, difficulty);
+
+        // Clear old enemy army and add new pieces
+        gameState.getEnemyArmyConfig().getPieces().clear();
+        if (enemyConfig.getPieces() != null && !enemyConfig.getPieces().isEmpty()) {
+            gameState.getEnemyArmyConfig().getPieces().addAll(enemyConfig.getPieces());
+        } else {
+            // Generate default enemy army if config is empty
+            List<EnhancedRPGPiece> defaultEnemies = generateDefaultEnemyArmy(nextRound, difficulty, boardSize);
+            gameState.getEnemyArmyConfig().getPieces().addAll(defaultEnemies);
+        }
 
         if (roundConfig.isBossRound()) {
             adjustEnemyConfigForBossRound(enemyConfig);
@@ -414,6 +426,37 @@ public class RPGGameService implements IRPGGameService {
         recordRoundProgressAction(gameState);
 
         return rpgGameStateRepository.save(gameState);
+    }
+
+    private List<EnhancedRPGPiece> generateDefaultEnemyArmy(int round, int difficulty, int boardSize) {
+        List<EnhancedRPGPiece> enemies = new ArrayList<>();
+        int enemyCount = Math.min(boardSize / 2, 4 + round); // Scale with round
+
+        for (int i = 0; i < enemyCount; i++) {
+            int baseHp = 10 + (round * 2);
+            int baseAtk = 3 + round;
+            int baseDef = 2 + round;
+
+            EnhancedRPGPiece enemy = new EnhancedRPGPiece(
+                    new RPGPiece(
+                            UUID.randomUUID().toString(),
+                            org.example.chessmystic.Models.chess.PieceType.values()[i % 6],
+                            org.example.chessmystic.Models.chess.PieceColor.black,
+                            "Enemy " + (i + 1),
+                            "Round " + round + " enemy",
+                            null,
+                            baseHp, baseHp, baseAtk, baseDef,
+                            Rarity.COMMON,
+                            false
+                    ),
+                    baseHp,
+                    Math.max(1, round / 3),
+                    0
+            );
+            enemies.add(enemy);
+        }
+
+        return enemies;
     }
 
     private int calculateDifficulty(int round, double multiplier) {
