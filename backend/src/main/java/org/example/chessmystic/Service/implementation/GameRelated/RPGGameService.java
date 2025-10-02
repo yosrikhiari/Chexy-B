@@ -380,6 +380,8 @@ public class RPGGameService implements IRPGGameService {
         RPGGameState gameState = getGameState(gameId);
         validateGameNotOver(gameState);
 
+        int currentCoins = gameState.getCoins();
+
         int nextRound = gameState.getCurrentRound() + 1;
 
         RoundProgression progression = roundProgressionRepository.findById("defaultProgressionId")
@@ -418,6 +420,7 @@ public class RPGGameService implements IRPGGameService {
         }
 
         updateGameStateForNextRound(gameState, nextRound, roundConfig, boardConfig, enemyConfig);
+        gameState.setCoins(currentCoins);
 
         if (gameState.getGameMode() == GameMode.MULTIPLAYER_RPG) {
             rotatePlayerTurn(gameState);
