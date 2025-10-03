@@ -901,6 +901,8 @@ public class RPGGameService implements IRPGGameService {
         return gameState;
     }
 
+// Replace the validateGameAction method in RPGGameService.java with this fixed version:
+
     private void validateGameAction(RPGGameState gameState, String playerId) {
         if (gameState.isGameOver()) {
             throw new IllegalStateException("Cannot perform action in a completed game");
@@ -911,26 +913,33 @@ public class RPGGameService implements IRPGGameService {
 
         // For single player RPG, be more lenient with player validation
         if (gameState.getGameMode() == GameMode.SINGLE_PLAYER_RPG) {
-            // Only check if any player in session matches - don't require exact turn matching
+            // Only check if player is associated with the game session
             boolean isPlayerInGame = session.getPlayerIds().contains(playerId) ||
                     (session.getWhitePlayer() != null && session.getWhitePlayer().getUserId().equals(playerId)) ||
                     (session.getBlackPlayer() != null && session.getBlackPlayer().getUserId().equals(playerId));
 
             if (!isPlayerInGame) {
-                logger.error("Player {} not found in single player game. Session players: {}",
-                        playerId, session.getPlayerIds());
+                logger.error("Player {} not found in single player game. Session players: {}, White: {}, Black: {}",
+                        playerId,
+                        session.getPlayerIds(),
+                        session.getWhitePlayer() != null ? session.getWhitePlayer().getUserId() : "null",
+                        session.getBlackPlayer() != null ? session.getBlackPlayer().getUserId() : "null");
                 throw new PlayerNotInGameException(playerId);
             }
-            // Skip turn validation for single player
+            // CRITICAL: Skip turn validation for single player - player can act anytime
+            logger.debug("Single player RPG mode: Skipping turn validation for player {}", playerId);
             return;
         }
 
         // Original multiplayer validation
         if (!session.getPlayerIds().contains(playerId)) {
+            logger.error("Player {} not in game. Session players: {}", playerId, session.getPlayerIds());
             throw new PlayerNotInGameException(playerId);
         }
 
         if (!session.getCurrentPlayerId().equals(playerId)) {
+            logger.error("Not player's turn. Current: {}, Requested: {}",
+                    session.getCurrentPlayerId(), playerId);
             throw new NotPlayerTurnException(playerId);
         }
     }
@@ -1236,38 +1245,82 @@ public class RPGGameService implements IRPGGameService {
     public RPGGameState trackKill(String gameId, String killerPieceId, String playerId) {
         RPGGameState gameState = getValidatedGameState(gameId, playerId);
 
-        if (gameState.getPlayerArmy() == null) return gameState;
+        if (gameState.getPlayerArmy() == null) {
+            throw new IllegalStateException("Player army is null");
+        }
 
+        // ONLY track kills for PLAYER pieces (not enemy pieces)
+        EnhancedRPGPiece killerPiece = null;
         for (RPGPiece p : gameState.getPlayerArmy()) {
             if (killerPieceId.equals(p.getId()) && p instanceof EnhancedRPGPiece) {
-                EnhancedRPGPiece ep = (EnhancedRPGPiece) p;
-
-                int currentLevel = ep.getLevel();
-                int killsNeeded = currentLevel; // Level 1 needs 1 kill, Level 2 needs 2 kills, etc.
-                int currentKills = (ep.getKillCount() != null ? ep.getKillCount() : 0) + 1;
-
-                ep.setKillCount(currentKills);
-
-                // Check for level up
-                if (currentKills >= killsNeeded) {
-                    ep.setLevel(currentLevel + 1);
-                    ep.setMaxHp(ep.getMaxHp() + 5);
-                    ep.setCurrentHp(ep.getMaxHp()); // Full heal
-                    ep.setAttack(ep.getAttack() + 2);
-                    ep.setDefense(ep.getDefense() + 1);
-                    ep.setKillCount(0); // Reset kill counter
-
-                    updateGameStateAndRotateTurn(gameState, playerId,
-                            "LevelUp:" + ep.getName() + ":Level" + ep.getLevel());
-                } else {
-                    updateGameStateAndRotateTurn(gameState, playerId,
-                            "Kill:" + ep.getName() + ":" + currentKills + "/" + killsNeeded);
-                }
-
-                return rpgGameStateRepository.save(gameState);
+                killerPiece = (EnhancedRPGPiece) p;
+                break;
             }
         }
 
-        throw new IllegalArgumentException("Killer piece not found in player army: " + killerPieceId);
+        if (killerPiece == null) {
+            // If piece is not found in player army, it's an enemy piece - don't track
+            logger.warn("Attempted to track kill for non-player piece: {}. Ignoring.", killerPieceId);
+            return gameState; // Return unchanged state
+        }
+
+        // Track kill and check for level up
+        int currentLevel = killerPiece.getLevel();
+        int killsNeeded = currentLevel; // Progressive: L1=1 kill, L2=2 kills, etc.
+        int currentKills = (killerPiece.getKillCount() != null ? killerPiece.getKillCount() : 0) + 1;
+
+        killerPiece.setKillCount(currentKills);
+        logger.info("Player piece {} tracked kill: {}/{} (Level {})",
+                killerPiece.getName(), currentKills, killsNeeded, currentLevel);
+
+        // Check for level up
+        if (currentKills >= killsNeeded) {
+            performLevelUp(killerPiece, currentLevel);
+
+            updateGameStateAndRotateTurn(gameState, playerId,
+                    "LevelUp:" + killerPiece.getName() + ":Level" + killerPiece.getLevel());
+        } else {
+            updateGameStateAndRotateTurn(gameState, playerId,
+                    "Kill:" + killerPiece.getName() + ":" + currentKills + "/" + killsNeeded);
+        }
+
+        return rpgGameStateRepository.save(gameState);
+    }
+
+    private void performLevelUp(EnhancedRPGPiece piece, int currentLevel) {
+        // Determine piece nature for stat scaling
+        String pieceName = (piece.getName() != null ? piece.getName() : "").toLowerCase();
+        boolean isTank = pieceName.contains("guard") || piece.getType() == org.example.chessmystic.Models.chess.PieceType.ROOK;
+        boolean isAssassin = pieceName.contains("rider") || piece.getType() == org.example.chessmystic.Models.chess.PieceType.KNIGHT;
+
+        // Increment level
+        piece.setLevel(currentLevel + 1);
+
+        // Scale stat increases based on piece type
+        if (isTank) {
+            // Tank: Focus on HP and Defense
+            piece.setMaxHp(piece.getMaxHp() + 3);
+            piece.setDefense(piece.getDefense() + 2);
+            piece.setAttack(piece.getAttack() + 1);
+        } else if (isAssassin) {
+            // Assassin: Focus on Attack
+            piece.setMaxHp(piece.getMaxHp() + 2);
+            piece.setAttack(piece.getAttack() + 3);
+            piece.setDefense(piece.getDefense() + 1);
+        } else {
+            // Balanced: Moderate gains across all stats
+            piece.setMaxHp(piece.getMaxHp() + 2);
+            piece.setAttack(piece.getAttack() + 2);
+            piece.setDefense(piece.getDefense() + 1);
+        }
+
+        // Full heal on level up
+        piece.setCurrentHp(piece.getMaxHp());
+
+        // Reset kill counter for next level
+        piece.setKillCount(0);
+
+        logger.info("Player piece {} leveled up to Level {}! New stats - HP: {}, ATK: {}, DEF: {}",
+                piece.getName(), piece.getLevel(), piece.getMaxHp(), piece.getAttack(), piece.getDefense());
     }
 }

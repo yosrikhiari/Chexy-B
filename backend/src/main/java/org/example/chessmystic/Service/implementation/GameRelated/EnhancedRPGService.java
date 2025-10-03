@@ -208,24 +208,28 @@ public class EnhancedRPGService implements IEnhancedRPGService {
 
     private void handleDefeatedPiece(EnhancedGameState gameState, EnhancedRPGPiece piece, int scoreValue) {
         if (gameState.getEnemyArmy().contains(piece)) {
+            // Enemy piece defeated - NO LEVELING FOR ENEMIES
             gameState.getEnemyArmy().remove(piece);
             gameState.setScore(gameState.getScore() + scoreValue * 10);
             gameState.setCoins(gameState.getCoins() + 5);
 
-            // Get game session to access player IDs
+            logger.info("Enemy piece {} defeated. Score: +{}, Coins: +5", piece.getName(), scoreValue * 10);
+
+            // Update player profiles (for all players in the game)
             GameSession gameSession = gamesessionrepository.findById(gameState.getGameSessionId())
                     .orElse(null);
             if (gameSession != null) {
-                // Update all players in the game (for team games)
                 gameSession.getPlayerIds().forEach(playerId ->
                         updatePlayerProfile(playerId, scoreValue * 10, 5));
             }
         } else if (gameState.getPlayerArmy().contains(piece)) {
+            // Player piece defeated - remove from army, no leveling changes
             gameState.getPlayerArmy().remove(piece);
             gameState.setLives(gameState.getLives() - 1);
+
+            logger.info("Player piece {} defeated. Lives remaining: {}", piece.getName(), gameState.getLives());
         }
     }
-
     private void updatePlayerProfile(String userId, int score, int coins) {
         playerProfileRepository.findByUserId(userId).ifPresent(profile -> {
             profile.setTotalCoins(profile.getTotalCoins() + coins);
