@@ -11,6 +11,7 @@ import org.example.chessmystic.Models.rpg.RPGPiece;
 import org.example.chessmystic.Models.rpg.SpecializationType;
 import org.example.chessmystic.Models.rpg.AbilityId;
 import org.example.chessmystic.Repository.GameSessionRepository;
+import org.example.chessmystic.Service.implementation.GameRelated.GoldManagementBackendService;
 import org.example.chessmystic.Service.interfaces.GameRelated.IPlayerActionService;
 import org.example.chessmystic.Service.interfaces.GameRelated.IRPGGameService;
 import org.springframework.http.HttpStatus;
@@ -32,10 +33,14 @@ public class RPGGameController {
     private final GameSessionRepository gameSessionRepository;
 
 
-    public RPGGameController(IRPGGameService rpgGameService, IPlayerActionService playerActionService, GameSessionRepository gameSessionRepository) {
+    public RPGGameController(IRPGGameService rpgGameService,
+                             IPlayerActionService playerActionService,
+                             GameSessionRepository gameSessionRepository,
+                             GoldManagementBackendService goldManagementService) {
         this.rpgGameService = rpgGameService;
         this.playerActionService = playerActionService;
         this.gameSessionRepository = gameSessionRepository;
+        this.goldManagementService = goldManagementService;
     }
 
     @PostMapping
@@ -534,4 +539,58 @@ public class RPGGameController {
                     .body(Map.of("error", "Failed to track kill", "message", e.getMessage()));
         }
     }
+    @PostMapping("/gold/award-round/{gameId}")
+    public ResponseEntity<?> awardRoundGold(@PathVariable String gameId,
+                                            @RequestParam String playerId) {
+        try {
+            RPGGameState gameState = goldManagementService.awardRoundGold(gameId, playerId);
+            return ResponseEntity.ok(gameState);
+        } catch (IllegalArgumentException e) {
+            logger.error("Invalid gold award request: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", e.getMessage()));
+        } catch (RuntimeException e) {
+            logger.error("Failed to award round gold: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to award gold", "message", e.getMessage()));
+        }
+    }
+
+    /**
+     * Get gold breakdown showing current gold, bonuses, and next reward
+     * GET /rpg-game/gold/breakdown/{gameId}
+     */
+    @GetMapping("/gold/breakdown/{gameId}")
+    public ResponseEntity<?> getGoldBreakdown(@PathVariable String gameId) {
+        try {
+            GoldManagementBackendService.GoldBreakdown breakdown =
+                    goldManagementService.getGoldBreakdown(gameId);
+            return ResponseEntity.ok(breakdown);
+        } catch (RuntimeException e) {
+            logger.error("Failed to get gold breakdown: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to get gold breakdown", "message", e.getMessage()));
+        }
+    }
+
+    /**
+     * Verify gold persistence (debugging endpoint)
+     * GET /rpg-game/gold/verify/{gameId}
+     */
+    @GetMapping("/gold/verify/{gameId}")
+    public ResponseEntity<?> verifyGoldPersistence(@PathVariable String gameId) {
+        try {
+            int coins = goldManagementService.verifyGoldPersistence(gameId);
+            return ResponseEntity.ok(Map.of("gameId", gameId, "coins", coins));
+        } catch (RuntimeException e) {
+            logger.error("Failed to verify gold: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "Game not found", "message", e.getMessage()));
+        }
+    }
+
+    // Add this field to RPGGameController class
+    private final GoldManagementBackendService goldManagementService;
+
+
 }
