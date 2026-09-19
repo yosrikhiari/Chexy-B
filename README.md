@@ -1,5 +1,7 @@
 # Chexy — Backend
 
+> **Moved.** This repository is archived; it now lives at [`yosrikhiari/Chexy`](https://github.com/yosrikhiari/Chexy) in the `backend/` folder, with full history.
+
 Spring Boot API for **Chexy**, a chess platform with a classic mode and an RPG mode (armies,
 gold, special abilities, tie resolution). One of four repositories:
 
